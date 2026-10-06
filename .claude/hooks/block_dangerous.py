@@ -42,7 +42,7 @@ REASONS = {
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
-    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션이나 tee 는 허용되지 않습니다. "
+    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, pv -o 는 허용되지 않습니다. "
     "/dev/null, /dev/stderr 같은 안전한 장치만 쓸 수 있습니다.",
     "find": "차단됨: 루트(/)나 홈(~) 전체를 대상으로 파일을 지우는 find 명령은 허용되지 않습니다. "
     "-name 이나 -path 로 대상을 좁히거나 시작 경로를 더 구체적으로 주세요.",
@@ -886,6 +886,56 @@ def check_find(arg_words, state):
     return None
 
 
+CP_VALUE_SHORT = {"-S", "-t"}
+CP_VALUE_LONG = {"--suffix", "--target-directory"}
+
+
+def check_cp(arg_words, state):
+    """cp 의 대상(마지막 인자 또는 -t 디렉터리)이 장치면 막는다. 원본이 장치인 것(백업)은 괜찮다."""
+    target, positional, after = None, [], False
+    words = iter(arg_words)
+    for w in words:
+        a = w.value
+        if after or not a.startswith("-") or a == "-":
+            positional.append(w)
+        elif a == "--":
+            after = True
+        elif a in ("-t", "--target-directory"):
+            target = next(words, None)
+        elif a.startswith("--target-directory="):
+            target = Word()
+            target.value = a.split("=", 1)[1]
+        elif a.startswith("-t") and not a.startswith("--"):
+            target = Word()
+            target.value = a[2:]
+        elif a in CP_VALUE_SHORT or a in CP_VALUE_LONG:
+            next(words, None)
+    if target is None and len(positional) >= 2:
+        target = positional[-1]
+    if target is not None and is_device(target, state):
+        return REASONS["device_write"]
+    return None
+
+
+def check_pv(arg_words, state):
+    """pv -o/--output 으로 장치에 쓰면 막는다. pv ... > /dev/sdb 는 리디렉션 검사가 막는다."""
+    words = iter(arg_words)
+    for w in words:
+        a = w.value
+        target = None
+        if a in ("-o", "--output"):
+            target = next(words, None)
+        elif a.startswith("--output="):
+            target = Word()
+            target.value = a.split("=", 1)[1]
+        elif a.startswith("-o") and len(a) > 2:
+            target = Word()
+            target.value = a[2:]
+        if target is not None and is_device(target, state):
+            return REASONS["device_write"]
+    return None
+
+
 def echo_args(seg):
     """앞 구간이 echo/printf 면 그 인자를 돌려준다 (파이프로 넘어가는 내용)."""
     if seg is None:
@@ -973,6 +1023,10 @@ def check_segment(seg, piped_from, state, depth):
         return check_dd(args, state["cwd"])
     if name == "find":
         return check_find(arg_words, state)
+    if name == "cp":
+        return check_cp(arg_words, state)
+    if name == "pv":
+        return check_pv(arg_words, state)
     if name == "tee":
         for w in arg_words:
             if not w.value.startswith("-") and is_device(w, state):
