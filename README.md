@@ -19,7 +19,9 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 .claude/
 ├── settings.json          # 훅 등록 (팀 공유, git 커밋)
 ├── hooks/
-│   ├── block-dangerous.sh # rm -rf /, main 강제 푸시, reset --hard 등 차단
+│   ├── block-dangerous.sh # 차단 훅 진입점. 파이썬 검사기를 실행
+│   ├── block_dangerous.py # 위험 명령 판단 본체 (루트/홈 삭제, main 강제 푸시 등)
+│   ├── tests/             # 차단 훅 시험 (python3 .claude/hooks/tests/test_block_dangerous.py)
 │   ├── log-tool-use.sh    # 모든 도구 호출을 .claude/logs/tool-use.jsonl 에 기록
 │   └── format-file.sh     # Write/Edit 직후 prettier 로 자동 포맷
 ├── skills/                # /명령어로 부르는 프롬프트 템플릿 (아래 "슬래시 명령어" 참고)
@@ -126,17 +128,45 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 `block-dangerous.sh`는 다음을 막습니다.
 
-| 차단 대상             | 예시                                                        |
-| --------------------- | ----------------------------------------------------------- |
-| 루트/홈 전체 삭제     | `rm -rf /`, `rm -rf ~`, `sudo rm -fr /*`                    |
-| 기본 브랜치 강제 푸시 | `git push --force origin main`, `git push origin master -f` |
-| 작업 내용 유실        | `git reset --hard`, `git clean -f`                          |
-| 디스크 파괴           | `mkfs.*`, `dd ... of=/dev/...`                              |
+| 차단 대상             | 예시                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| 루트/홈 재귀 삭제     | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`               |
+| main/master 강제 푸시 | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease` |
+| main/master 원격 삭제 | `git push origin :main`, `git push origin --delete main`                                                 |
+| 작업 내용 유실        | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`               |
+| 디스크 파괴           | `mkfs.*`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                |
+| 해석할 수 없는 명령   | 따옴표 짝이 맞지 않는 명령, JSON이 아닌 훅 입력                                                          |
 
-`rm -rf ./build`, `git push --force origin feature/x`, `git clean -n` 같은 일상적인 명령은 통과합니다.
+다음과 같은 변형도 같은 명령으로 알아봅니다.
 
-> 주의: 매처는 **명령 문자열 전체**를 봅니다. 문자열 안에 패턴이 들어 있기만 해도
-> (예: 테스트용 heredoc) 차단됩니다. 이것은 의도된 보수적 동작입니다.
+- `sudo`, `env`, `nohup`, `timeout`, 변수 대입(`FOO=1 rm ...`)이 앞에 붙은 경우
+- `git -C 경로 ...`, `git -c 설정=값 ...`처럼 git 전역 옵션이 붙은 경우
+- `;`, `&&`, `||`, `|`, 여러 줄, `if ...; then ...; fi` 안에 들어 있는 경우
+- `bash -c "..."`, `eval "..."`, `$(...)`, 백틱, 따옴표 없는 heredoc 안의 `$(...)`
+- refspec 없이 `git push -f`만 친 경우에는 현재 브랜치가 main/master인지 확인합니다
+
+다음은 통과합니다.
+
+- 일상적인 명령: `rm -rf ./build`, `rm -rf ~/projects/old`, `git push --force origin feature/x`,
+  `git push --follow-tags origin main`, `git clean -n`, `git reset --soft HEAD~1`, `dd ... of=/dev/null`
+- **따옴표 안의 글자**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
+  `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `man mkfs`
+
+> 동작 방식: 명령 문자열을 정규식으로 훑지 않고, 셸처럼 토큰으로 나눈 뒤 **명령 위치에 있는 프로그램**과
+> 그 인자만 검사합니다. 그래서 따옴표 안의 글자는 오탐하지 않고, 옵션 순서나 표기를 바꿔도 속지 않습니다.
+> 이 해석에는 Python 3.9 이상이 필요합니다. 파이썬이 없으면 훅은 모든 명령을 통과시키고 경고만 띄웁니다.
+
+> 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 변수에 경로를 담아 지우거나(`d=/; rm -rf $d`),
+> 스크립트 파일을 만들어 실행하는 식으로 일부러 꾸민 명령까지 막지는 못합니다.
+
+훅을 고친 뒤에는 시험을 돌리세요. 위험한 시험 문자열은 시험 파일 안에만 있으므로, 터미널에 직접 치면 그 명령 자체가 막힙니다.
+
+```bash
+python3 .claude/hooks/tests/test_block_dangerous.py      # 실패한 경우만 출력
+python3 .claude/hooks/tests/test_block_dangerous.py -v   # 전체 결과 출력
+```
+
+시험 목록은 `.claude/hooks/tests/block-dangerous.cases`에 한 줄에 `기대값<TAB>명령` 형식으로 추가합니다.
 
 ### 4. 후처리하는 방법 (PostToolUse)
 
