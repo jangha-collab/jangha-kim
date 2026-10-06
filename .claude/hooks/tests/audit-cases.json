@@ -204,14 +204,12 @@
  {
   "id": "W16",
   "expect": "deny",
-  "cmd": "find / -delete",
-  "skip": "범위 밖: find 로 지우기"
+  "cmd": "find / -delete"
  },
  {
   "id": "W17",
   "expect": "deny",
-  "cmd": "find ~ -mindepth 1 -exec rm -rf {} +",
-  "skip": "범위 밖: find -exec 로 지우기"
+  "cmd": "find ~ -mindepth 1 -exec rm -rf {} +"
  },
  {
   "id": "S01",
@@ -485,8 +483,7 @@
  {
   "id": "D03",
   "expect": "deny",
-  "cmd": "sudo cat x.img > /dev/sdb",
-  "skip": "범위 밖: 리디렉션으로 장치에 쓰기"
+  "cmd": "sudo cat x.img > /dev/sdb"
  },
  {
   "id": "D04",

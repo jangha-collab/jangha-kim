@@ -138,5 +138,71 @@ allow	dd if=big.bin of=/dev/null bs=1M
 allow	dd if=/dev/zero of=./disk.img bs=1M count=10
 allow	dd if=/dev/urandom of=random.bin count=1
 
+# ---- find 로 루트/홈 전체 삭제: 막아야 함
+deny	find / -delete
+deny	find ~ -delete
+deny	find $HOME -type f -delete
+deny	find -L / -mindepth 1 -delete
+deny	find / -mindepth 1 -exec rm -rf {} +
+deny	find ~ -type f -exec rm {} \;
+deny	find ~ -execdir /bin/rm -f {} +
+deny	find ~ ! -name keep.txt -delete
+deny	find ~ -not -name keep.txt -delete
+deny	cd ~ && find . -delete
+deny	sudo find / -xdev -delete
+deny	find / -print0 | xargs -0 rm -rf
+deny	find ~ -type f | xargs rm
+deny	bash -c 'find ~ -delete'
+
+# ---- find: 통과해야 함
+allow	find . -delete
+allow	find . -name "*.pyc" -delete
+allow	find ~ -name '*.pyc' -delete
+allow	find / -path '*/node_modules/.cache/*' -delete
+allow	find ~/projects/old -delete
+allow	find /tmp -mindepth 1 -delete
+allow	find ~ -type d -empty -delete
+allow	find / -name "*.log" -print
+allow	find ~ -type f -ok rm {} \;
+allow	find . -type d -name node_modules -prune -exec rm -rf {} +
+allow	find ~ -name '*.bak' -print0 | xargs -0 rm -f
+allow	find / -type f | wc -l
+
+# ---- 장치로 리디렉션·tee: 막아야 함
+deny	cat x.img > /dev/sdb
+deny	echo hi >> /dev/sda
+deny	cat x.img >| /dev/nvme0n1
+deny	ls &> /dev/sda
+deny	ls &>> /dev/sda
+deny	ls >&/dev/sda
+deny	exec 3<> /dev/sda
+deny	cat x.img 1>/dev/disk2
+deny	{ cat a.img; cat b.img; } > /dev/sdc
+deny	(cat x.img) > /dev/sdc
+deny	sudo sh -c 'cat x.img > /dev/sdb'
+deny	cat x.img | sudo tee /dev/sdb
+deny	cat x.img | tee -a out.log /dev/sdb
+deny	cd /dev && cat x.img > sda
+deny	cat x.img > //dev/sda
+deny	DEV=/dev/sdb; cat x.img > $DEV
+deny	> /dev/sda
+
+# ---- 리디렉션: 통과해야 함
+allow	ls > /dev/null
+allow	make > build.log 2>&1
+allow	make 2>/dev/null
+allow	echo hi > /dev/stderr
+allow	echo hi >&2
+allow	echo hi 1>&2 2>&-
+allow	echo x | tee /dev/stderr
+allow	echo x | tee out.log
+allow	exec 3>/dev/tcp/example.com/80
+allow	echo "> /dev/sda"
+allow	cat x.img > disk.img
+allow	ls -la /dev/sda > devices.txt
+allow	dd if=/dev/sda of=backup.img < /dev/null
+allow	echo progress > /dev/tty
+allow	head -c 10 /dev/urandom > key.bin
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated
