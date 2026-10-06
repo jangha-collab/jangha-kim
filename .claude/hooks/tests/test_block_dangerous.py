@@ -18,6 +18,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOOK = os.environ.get("HOOK") or os.path.join(HERE, "..", "block-dangerous.sh")
 CASES = os.path.join(HERE, "block-dangerous.cases")
+AUDIT = os.path.join(HERE, "audit-cases.json")
 
 # 한 줄 목록 파일에 넣기 어려운 경우들: (기대값, 명령, 설명)
 MULTILINE = [
@@ -73,6 +74,31 @@ def branch_cases():
     return results
 
 
+def audit_cases():
+    """hook-auditor 가 만든 우회·오탐 사례. {MAIN}/{FEAT} 는 임시 저장소 경로로 바뀐다."""
+    with open(AUDIT, encoding="utf-8") as f:
+        cases = json.load(f)
+    results, skipped = [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        repos = {}
+        for key, branch in (("{MAIN}", "main"), ("{FEAT}", "feature/x")):
+            repos[key] = os.path.join(tmp, branch.replace("/", "_"))
+            subprocess.run(["git", "init", "-q", "-b", branch, repos[key]], check=True)
+
+        def fill(text):
+            for key, path in repos.items():
+                text = text.replace(key, path)
+            return text
+
+        for c in cases:
+            if "skip" in c:
+                skipped.append(f"skip {c['id']}  {c['skip']}")
+                continue
+            label = f"[감사 {c['id']}] " + c["cmd"].replace("\n", "⏎")
+            results.append(check(c["expect"], fill(c["cmd"]), label, cwd=fill(c["cwd"]) if "cwd" in c else None))
+    return results, skipped
+
+
 def input_cases():
     """훅 입력 자체가 이상한 경우."""
     results = []
@@ -92,16 +118,21 @@ def main():
     results = [check(e, c, label) for e, c, label in load_cases()]
     results += [check(e, c, f"[여러 줄] {label}") for e, c, label in MULTILINE]
     results += branch_cases()
+    audit, skipped = audit_cases()
+    results += audit
     results += input_cases()
 
     verbose = "-v" in sys.argv
     for ok, line in results:
         if verbose or not ok:
             print(line)
+    if verbose:
+        print("\n".join([""] + skipped))
     failed = sum(1 for ok, _ in results if not ok)
     deny_total = sum(1 for _, line in results if "expect=deny" in line)
     print(f"\n대상: {os.path.relpath(HOOK)}")
     print(f"전체 {len(results)}개 (막아야 함 {deny_total}, 통과해야 함 {len(results) - deny_total}) 중 실패 {failed}개")
+    print(f"건너뜀 {len(skipped)}개 (범위 밖이거나 정적 분석으로 알 수 없는 경우, -v 로 목록 확인)")
     sys.exit(1 if failed else 0)
 
 

@@ -1,0 +1,787 @@
+[
+ {
+  "id": "R01",
+  "expect": "deny",
+  "cmd": "rm -rf /.."
+ },
+ {
+  "id": "R02",
+  "expect": "deny",
+  "cmd": "rm -rf /./"
+ },
+ {
+  "id": "R03",
+  "expect": "deny",
+  "cmd": "rm -rf /./*"
+ },
+ {
+  "id": "R04",
+  "expect": "deny",
+  "cmd": "rm -rf ~/./"
+ },
+ {
+  "id": "R05",
+  "expect": "deny",
+  "cmd": "rm -rf ~/.."
+ },
+ {
+  "id": "R06",
+  "expect": "deny",
+  "cmd": "rm -rf {/,/tmp/x}"
+ },
+ {
+  "id": "R07",
+  "expect": "deny",
+  "cmd": "rm -rf $'/'"
+ },
+ {
+  "id": "R08",
+  "expect": "deny",
+  "cmd": "T=/; rm -rf $T"
+ },
+ {
+  "id": "R09",
+  "expect": "deny",
+  "cmd": "rm -rf \"$BUILD_DIR\"/*"
+ },
+ {
+  "id": "R10",
+  "expect": "deny",
+  "cmd": "rm -rf \"${HOME:?}\""
+ },
+ {
+  "id": "R11",
+  "expect": "deny",
+  "cmd": "rm -rf \"${HOME:?}\"/*"
+ },
+ {
+  "id": "R12",
+  "expect": "deny",
+  "cmd": "rm -rf ';' /"
+ },
+ {
+  "id": "R13",
+  "expect": "deny",
+  "cmd": "rm -rf '>' /"
+ },
+ {
+  "id": "R14",
+  "expect": "deny",
+  "cmd": "rm -rf ')' ~"
+ },
+ {
+  "id": "R15",
+  "expect": "deny",
+  "cmd": "echo / | xargs rm -rf"
+ },
+ {
+  "id": "R16",
+  "expect": "deny",
+  "cmd": "rm --rec -f /"
+ },
+ {
+  "id": "R17",
+  "expect": "deny",
+  "cmd": "$(echo rm) -rf /",
+  "skip": "정적 분석 한계: 명령 이름이 $(...) 결과"
+ },
+ {
+  "id": "R18",
+  "expect": "deny",
+  "cmd": "rm${IFS}-rf${IFS}/",
+  "skip": "정적 분석 한계: ${IFS} 로 단어 나누기"
+ },
+ {
+  "id": "R19",
+  "expect": "deny",
+  "cmd": "cd ~ && rm -rf *"
+ },
+ {
+  "id": "R20",
+  "expect": "deny",
+  "cmd": "rm -rf \"$HOME\"/"
+ },
+ {
+  "id": "R21",
+  "expect": "deny",
+  "cmd": "rm -fr -- \"${HOME}/\"*"
+ },
+ {
+  "id": "R22",
+  "expect": "deny",
+  "cmd": "rm -rf /root"
+ },
+ {
+  "id": "R23",
+  "expect": "deny",
+  "cmd": "rm -rf \\/"
+ },
+ {
+  "id": "R24",
+  "expect": "deny",
+  "cmd": "r''m -rf ~"
+ },
+ {
+  "id": "R25",
+  "expect": "deny",
+  "cmd": "rm / -rf"
+ },
+ {
+  "id": "W01",
+  "expect": "deny",
+  "cmd": "sudo -iu root rm -rf /"
+ },
+ {
+  "id": "W02",
+  "expect": "deny",
+  "cmd": "sudo --user root rm -rf /"
+ },
+ {
+  "id": "W03",
+  "expect": "deny",
+  "cmd": "sudo -E -H rm -rf ~"
+ },
+ {
+  "id": "W04",
+  "expect": "deny",
+  "cmd": "sudo -- rm -rf /"
+ },
+ {
+  "id": "W05",
+  "expect": "deny",
+  "cmd": "exec -a x rm -rf /"
+ },
+ {
+  "id": "W06",
+  "expect": "deny",
+  "cmd": "ionice -c 3 rm -rf /"
+ },
+ {
+  "id": "W07",
+  "expect": "deny",
+  "cmd": "time -p rm -rf /"
+ },
+ {
+  "id": "W08",
+  "expect": "deny",
+  "cmd": "/usr/bin/time rm -rf /"
+ },
+ {
+  "id": "W09",
+  "expect": "deny",
+  "cmd": "setsid rm -rf /"
+ },
+ {
+  "id": "W10",
+  "expect": "deny",
+  "cmd": "busybox rm -rf /"
+ },
+ {
+  "id": "W11",
+  "expect": "deny",
+  "cmd": "su -c 'rm -rf /'"
+ },
+ {
+  "id": "W12",
+  "expect": "deny",
+  "cmd": "sudo su -c \"rm -rf ~\""
+ },
+ {
+  "id": "W13",
+  "expect": "deny",
+  "cmd": "env -S 'rm -rf /'"
+ },
+ {
+  "id": "W14",
+  "expect": "deny",
+  "cmd": "timeout --preserve-status -k 5 10 rm -rf /"
+ },
+ {
+  "id": "W15",
+  "expect": "deny",
+  "cmd": "nice -n 10 sudo env A=1 rm -rf ~"
+ },
+ {
+  "id": "W16",
+  "expect": "deny",
+  "cmd": "find / -delete",
+  "skip": "범위 밖: find 로 지우기"
+ },
+ {
+  "id": "W17",
+  "expect": "deny",
+  "cmd": "find ~ -mindepth 1 -exec rm -rf {} +",
+  "skip": "범위 밖: find -exec 로 지우기"
+ },
+ {
+  "id": "S01",
+  "expect": "deny",
+  "cmd": "function f { rm -rf /; }; f"
+ },
+ {
+  "id": "S02",
+  "expect": "deny",
+  "cmd": "f() { rm -rf /; }; f"
+ },
+ {
+  "id": "S03",
+  "expect": "deny",
+  "cmd": "coproc rm -rf /"
+ },
+ {
+  "id": "S04",
+  "expect": "deny",
+  "cmd": "{ rm -rf ~; } 2>/dev/null"
+ },
+ {
+  "id": "S05",
+  "expect": "deny",
+  "cmd": "( cd /tmp ; ( rm -rf / ) )"
+ },
+ {
+  "id": "S06",
+  "expect": "deny",
+  "cmd": "case x in x) rm -rf / ;; esac"
+ },
+ {
+  "id": "S07",
+  "expect": "deny",
+  "cmd": "for d in a; do rm -rf ~; done"
+ },
+ {
+  "id": "S08",
+  "expect": "deny",
+  "cmd": "bash <<< \"rm -rf /\""
+ },
+ {
+  "id": "S09",
+  "expect": "deny",
+  "cmd": "echo \"rm -rf /\" | bash"
+ },
+ {
+  "id": "S10",
+  "expect": "deny",
+  "cmd": "bash <<'EOF'\nrm -rf /\nEOF"
+ },
+ {
+  "id": "S11",
+  "expect": "deny",
+  "cmd": "bash -c -- 'rm -rf /'"
+ },
+ {
+  "id": "S12",
+  "expect": "deny",
+  "cmd": "bash -o pipefail -ec 'rm -rf /'"
+ },
+ {
+  "id": "S13",
+  "expect": "deny",
+  "cmd": "echo \"$( (rm -rf /) )\""
+ },
+ {
+  "id": "S14",
+  "expect": "deny",
+  "cmd": "echo \"<<EOF\"\nrm -rf /"
+ },
+ {
+  "id": "S15",
+  "expect": "deny",
+  "cmd": "cat <<< word\nrm -rf /"
+ },
+ {
+  "id": "S16",
+  "expect": "deny",
+  "cmd": "eval eval eval eval eval eval eval rm -rf /"
+ },
+ {
+  "id": "S17",
+  "expect": "deny",
+  "cmd": "sh -c \"$(printf 'rm -rf /')\"",
+  "skip": "정적 분석 한계: 실행 시점에 만들어지는 스크립트"
+ },
+ {
+  "id": "S18",
+  "expect": "deny",
+  "cmd": "x=$(\n  rm -rf ~\n)"
+ },
+ {
+  "id": "S19",
+  "expect": "deny",
+  "cmd": "rm -rf / & wait"
+ },
+ {
+  "id": "S20",
+  "expect": "deny",
+  "cmd": "ls |& rm -rf /"
+ },
+ {
+  "id": "S21",
+  "expect": "deny",
+  "cmd": "diff <(ls) >(rm -rf ~)"
+ },
+ {
+  "id": "S22",
+  "expect": "deny",
+  "cmd": "rm -rf \\\n  ~ \\\n  /tmp/x"
+ },
+ {
+  "id": "S23",
+  "expect": "deny",
+  "cmd": "! rm -rf /"
+ },
+ {
+  "id": "G01",
+  "expect": "deny",
+  "cmd": "git reset --har"
+ },
+ {
+  "id": "G02",
+  "expect": "deny",
+  "cmd": "git clean --forc -d"
+ },
+ {
+  "id": "G03",
+  "expect": "deny",
+  "cmd": "git push --delet origin main"
+ },
+ {
+  "id": "G04",
+  "expect": "deny",
+  "cmd": "git push --mirror origin"
+ },
+ {
+  "id": "G05",
+  "expect": "deny",
+  "cmd": "git push origin '+refs/heads/*:refs/heads/*'"
+ },
+ {
+  "id": "G06",
+  "expect": "deny",
+  "cmd": "git push --force origin heads/main"
+ },
+ {
+  "id": "G07",
+  "expect": "deny",
+  "cmd": "git submodule foreach git reset --hard"
+ },
+ {
+  "id": "G08",
+  "expect": "deny",
+  "cmd": "git submodule foreach 'git clean -fdx'"
+ },
+ {
+  "id": "G09",
+  "expect": "deny",
+  "cmd": "git clean -fdx -e -n"
+ },
+ {
+  "id": "G10",
+  "expect": "deny",
+  "cmd": "git clean -fdx -enode_modules"
+ },
+ {
+  "id": "G11",
+  "expect": "deny",
+  "cmd": "git --no-pager -C . reset --hard"
+ },
+ {
+  "id": "G12",
+  "expect": "deny",
+  "cmd": "git --git-dir .git --work-tree . reset --hard"
+ },
+ {
+  "id": "G13",
+  "expect": "deny",
+  "cmd": "git push origin +HEAD:main"
+ },
+ {
+  "id": "G14",
+  "expect": "deny",
+  "cmd": "git push --force origin -- main"
+ },
+ {
+  "id": "G15",
+  "expect": "deny",
+  "cmd": "git push origin feature:main --force-with-lease"
+ },
+ {
+  "id": "G16",
+  "expect": "deny",
+  "cmd": "git push -u --force origin \"refs/heads/main\""
+ },
+ {
+  "id": "G17",
+  "expect": "deny",
+  "cmd": "git push --force origin MAIN",
+  "skip": "브랜치 이름은 대소문자를 구분하므로 MAIN 은 main 이 아님"
+ },
+ {
+  "id": "G18",
+  "expect": "deny",
+  "cmd": "git clean -X -f -d"
+ },
+ {
+  "id": "G19",
+  "expect": "deny",
+  "cmd": "git -c core.hooksPath=/dev/null push -f origin master"
+ },
+ {
+  "id": "G20",
+  "expect": "deny",
+  "cmd": "git stash && git reset --hard origin/main"
+ },
+ {
+  "id": "B01",
+  "expect": "deny",
+  "cmd": "git push -f origin @",
+  "cwd": "{MAIN}"
+ },
+ {
+  "id": "B02",
+  "expect": "deny",
+  "cmd": "git push -f origin \"$(git branch --show-current)\"",
+  "cwd": "{MAIN}"
+ },
+ {
+  "id": "B03",
+  "expect": "deny",
+  "cmd": "cd {MAIN} && git push -f origin HEAD",
+  "cwd": "{FEAT}"
+ },
+ {
+  "id": "B04",
+  "expect": "deny",
+  "cmd": "git -C {MAIN} push --force-with-lease",
+  "cwd": "{FEAT}"
+ },
+ {
+  "id": "B05",
+  "expect": "deny",
+  "cmd": "git push --force-with-lease origin HEAD",
+  "cwd": "{MAIN}"
+ },
+ {
+  "id": "B06",
+  "expect": "allow",
+  "cmd": "cd {FEAT} && git push -f origin HEAD",
+  "cwd": "{MAIN}"
+ },
+ {
+  "id": "B07",
+  "expect": "allow",
+  "cmd": "git push --force-with-lease",
+  "cwd": "{FEAT}"
+ },
+ {
+  "id": "D01",
+  "expect": "deny",
+  "cmd": "mke2fs -t ext4 /dev/sda1"
+ },
+ {
+  "id": "D02",
+  "expect": "deny",
+  "cmd": "dd if=x.img of=//dev/sda"
+ },
+ {
+  "id": "D03",
+  "expect": "deny",
+  "cmd": "sudo cat x.img > /dev/sdb",
+  "skip": "범위 밖: 리디렉션으로 장치에 쓰기"
+ },
+ {
+  "id": "D04",
+  "expect": "deny",
+  "cmd": "cd /dev && sudo dd if=x.img of=sda"
+ },
+ {
+  "id": "D05",
+  "expect": "deny",
+  "cmd": "sudo dd if=x.img of=\"/dev/mmcblk0\" status=progress"
+ },
+ {
+  "id": "D06",
+  "expect": "deny",
+  "cmd": "dd of=/dev/sda if=x.img"
+ },
+ {
+  "id": "D07",
+  "expect": "deny",
+  "cmd": "sudo mkfs.vfat -F 32 /dev/sdc1"
+ },
+ {
+  "id": "X01",
+  "expect": "deny",
+  "cmd": "git -C \"\u0000\" push -f origin HEAD; rm -rf /"
+ },
+ {
+  "id": "A01",
+  "expect": "allow",
+  "cmd": "rm -rf ~/.cache/pip"
+ },
+ {
+  "id": "A02",
+  "expect": "allow",
+  "cmd": "rm -rf \"$HOME/.local/share/virtualenvs/x\""
+ },
+ {
+  "id": "A03",
+  "expect": "allow",
+  "cmd": "rm -rf /tmp/*"
+ },
+ {
+  "id": "A04",
+  "expect": "allow",
+  "cmd": "rm -rf ./* .[!.]*"
+ },
+ {
+  "id": "A05",
+  "expect": "allow",
+  "cmd": "rm -rf build/ dist/ *.egg-info"
+ },
+ {
+  "id": "A06",
+  "expect": "allow",
+  "cmd": "find . -name node_modules -prune -exec rm -rf {} +"
+ },
+ {
+  "id": "A07",
+  "expect": "allow",
+  "cmd": "find . -type d -name __pycache__ -exec rm -rf {} \\;"
+ },
+ {
+  "id": "A08",
+  "expect": "allow",
+  "cmd": "docker run --rm ubuntu bash -c \"rm -rf /tmp/*\""
+ },
+ {
+  "id": "A09",
+  "expect": "allow",
+  "cmd": "npm run build && rm -rf dist/.cache"
+ },
+ {
+  "id": "A10",
+  "expect": "allow",
+  "cmd": "rm -rf \"~\""
+ },
+ {
+  "id": "A11",
+  "expect": "allow",
+  "cmd": "git push origin main --tags"
+ },
+ {
+  "id": "A12",
+  "expect": "allow",
+  "cmd": "git push origin HEAD:main"
+ },
+ {
+  "id": "A13",
+  "expect": "allow",
+  "cmd": "git push --force-with-lease origin feature/foo"
+ },
+ {
+  "id": "A14",
+  "expect": "allow",
+  "cmd": "git push origin --delete feature/main-fix"
+ },
+ {
+  "id": "A15",
+  "expect": "allow",
+  "cmd": "git push -n -f origin main"
+ },
+ {
+  "id": "A16",
+  "expect": "allow",
+  "cmd": "git push --force-if-includes origin main"
+ },
+ {
+  "id": "A17",
+  "expect": "allow",
+  "cmd": "git clean -ndx"
+ },
+ {
+  "id": "A18",
+  "expect": "allow",
+  "cmd": "git clean -e .env -n -d"
+ },
+ {
+  "id": "A19",
+  "expect": "allow",
+  "cmd": "git reset --soft origin/main"
+ },
+ {
+  "id": "A20",
+  "expect": "allow",
+  "cmd": "git reset HEAD -- ."
+ },
+ {
+  "id": "A21",
+  "expect": "allow",
+  "cmd": "git stash push -m \"wip: reset --hard later\""
+ },
+ {
+  "id": "A22",
+  "expect": "allow",
+  "cmd": "git config --global alias.undo 'reset --hard'"
+ },
+ {
+  "id": "A23",
+  "expect": "allow",
+  "cmd": "git log --format='%h;%s' | cut -d';' -f1"
+ },
+ {
+  "id": "A24",
+  "expect": "allow",
+  "cmd": "dd if=/dev/zero of=/dev/shm/bench bs=1M count=100"
+ },
+ {
+  "id": "A25",
+  "expect": "allow",
+  "cmd": "mkfs.ext4 -F rootfs.img"
+ },
+ {
+  "id": "A26",
+  "expect": "allow",
+  "cmd": "mkfs.ext4 -V"
+ },
+ {
+  "id": "A27",
+  "expect": "allow",
+  "cmd": "./scripts/mkfs.sh --help"
+ },
+ {
+  "id": "A28",
+  "expect": "allow",
+  "cmd": "ls -la /dev/sda && lsblk"
+ },
+ {
+  "id": "A29",
+  "expect": "allow",
+  "cmd": "echo \"$((1 << 4))\""
+ },
+ {
+  "id": "A30",
+  "expect": "allow",
+  "cmd": "diff <(git show main:README.md) README.md"
+ },
+ {
+  "id": "A31",
+  "expect": "allow",
+  "cmd": "tr ';' '\\n' < file.txt"
+ },
+ {
+  "id": "A32",
+  "expect": "allow",
+  "cmd": "npm test  # don't skip flaky ones"
+ },
+ {
+  "id": "A33",
+  "expect": "allow",
+  "cmd": "# Check what's listening\nss -ltnp | grep 3000"
+ },
+ {
+  "id": "A34",
+  "expect": "allow",
+  "cmd": "gh pr comment 12 --body 'Run `git clean -fd` first'"
+ },
+ {
+  "id": "A35",
+  "expect": "allow",
+  "cmd": "git commit -m 'docs: explain why $(rm -rf ~) is blocked'"
+ },
+ {
+  "id": "A36",
+  "expect": "allow",
+  "cmd": "python3 -c \"\nbits = 4\nmask = 1 << bits\nprint(mask)\n\""
+ },
+ {
+  "id": "A37",
+  "expect": "allow",
+  "cmd": "cat <<\\EOF\nit's fine\nEOF"
+ },
+ {
+  "id": "A38",
+  "expect": "allow",
+  "cmd": "cat > notes.txt <<'END-NOTES'\nit's fine\nEND-NOTES"
+ },
+ {
+  "id": "A39",
+  "expect": "allow",
+  "cmd": "git commit -m \"$(cat <<'EOF'\nfix(hook): don't block `rm -rf ./build` (again)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\""
+ },
+ {
+  "id": "A40",
+  "expect": "allow",
+  "cmd": "gh pr create --title \"fix: hook\" --body \"$(cat <<'EOF'\n## Summary\n- it's (fine): `git reset --hard` docs\n)\nEOF\n)\""
+ },
+ {
+  "id": "A41",
+  "expect": "allow",
+  "cmd": "cat <<EOF > .env\nHOME_DIR=$HOME\nEOF"
+ },
+ {
+  "id": "A42",
+  "expect": "allow",
+  "cmd": "echo 'it''s'; printf $'a\\tb\\n'"
+ },
+ {
+  "id": "A43",
+  "expect": "allow",
+  "cmd": "printf $'it\\'s\\n'"
+ },
+ {
+  "id": "A44",
+  "expect": "allow",
+  "cmd": "awk '{print $(NF-1)}' log.txt"
+ },
+ {
+  "id": "A45",
+  "expect": "allow",
+  "cmd": "for f in *.txt; do\n  # don't touch backups\n  echo \"$f\"\ndone"
+ },
+ {
+  "id": "A46",
+  "expect": "allow",
+  "cmd": "git commit -m \"Use cout << endl in printer\n\nAlso handle it's edge case\""
+ },
+ {
+  "id": "A47",
+  "expect": "allow",
+  "cmd": "tar -czf backup.tgz ~ && du -sh ~/*"
+ },
+ {
+  "id": "A48",
+  "expect": "allow",
+  "cmd": "command -v rm && type git"
+ },
+ {
+  "id": "A49",
+  "expect": "allow",
+  "cmd": "git push -f origin HEAD",
+  "cwd": "{FEAT}"
+ },
+ {
+  "id": "A50",
+  "expect": "allow",
+  "cmd": "files=(git clean -fd); echo \"${files[@]}\""
+ },
+ {
+  "id": "A51",
+  "expect": "allow",
+  "cmd": "sudo apt-get install -y build-essential"
+ },
+ {
+  "id": "A52",
+  "expect": "allow",
+  "cmd": "kubectl exec pod -- rm -rf /tmp/cache"
+ },
+ {
+  "id": "A53",
+  "expect": "allow",
+  "cmd": "git checkout main && git pull --rebase"
+ },
+ {
+  "id": "A54",
+  "expect": "allow",
+  "cmd": "echo done; # cleanup later; rm -rf ~"
+ }
+]
