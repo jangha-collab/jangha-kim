@@ -22,6 +22,11 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 │   ├── block-dangerous.sh # rm -rf /, main 강제 푸시, reset --hard 등 차단
 │   ├── log-tool-use.sh    # 모든 도구 호출을 .claude/logs/tool-use.jsonl 에 기록
 │   └── format-file.sh     # Write/Edit 직후 prettier 로 자동 포맷
+├── skills/                # /명령어로 부르는 프롬프트 템플릿 (아래 "슬래시 명령어" 참고)
+│   ├── commit-ko/SKILL.md
+│   ├── pr-ko/SKILL.md
+│   ├── explain-ko/SKILL.md
+│   └── new-hook/SKILL.md
 └── logs/                  # 훅이 만드는 로그 (gitignore 됨)
 ```
 
@@ -195,3 +200,64 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 | 응답 종료 전 git 상태 확인 | `Stop` / 없음                 | 커밋 안 된 변경이 있으면 `{"decision":"block","reason":"..."}` 출력            |
 | 압축 전 보존할 내용 묻기   | `PreCompact` / `auto`         | 보존 항목을 `additionalContext`로 출력                                         |
 | 모델 판단으로 차단         | `PreToolUse` / `Bash`         | `{"type":"prompt","prompt":"이 명령이 안전한가? $ARGUMENTS"}`                  |
+
+# 슬래시 명령어: 자주 쓰는 프롬프트를 `/이름`으로 호출
+
+훅이 "이벤트가 일어나면 자동으로" 실행된다면, 슬래시 명령어는 "내가 부를 때" 실행되는 프롬프트 템플릿입니다.
+매번 같은 지시를 길게 타이핑하는 대신 `.claude/skills/<이름>/SKILL.md`에 한 번 적어 두고 `/이름`으로 부릅니다.
+이 폴더는 git에 커밋되므로 팀 전체가 같은 명령어를 씁니다.
+
+## 이 저장소의 명령어
+
+| 명령어        | 하는 일                                                         | Claude가 알아서 호출 |
+| ------------- | --------------------------------------------------------------- | -------------------- |
+| `/commit-ko`  | 스테이징된 변경을 읽고 한국어 커밋 메시지를 써서 커밋           | 안 함 (직접 호출만)  |
+| `/pr-ko`      | main 대비 변경을 읽고 한국어 PR 설명 초안 출력                  | 함                   |
+| `/explain-ko` | 파일·함수·설정을 개발자가 아닌 사람도 알 수 있게 설명           | 함                   |
+| `/new-hook`   | "X할 때마다 Y" 요청을 훅 스크립트와 settings.json 등록으로 생성 | 안 함 (직접 호출만)  |
+
+사용 예:
+
+```
+/commit-ko 로그인 버그 수정 건
+/pr-ko 보안 관련 변경이 있으니 꼼꼼히 봐 주세요
+/explain-ko .claude/hooks/block-dangerous.sh
+/new-hook 파이썬 파일 수정 후 ruff 실행
+```
+
+## SKILL.md 구조
+
+```markdown
+---
+name: 명령어-이름 # /명령어-이름 으로 호출. 생략하면 폴더 이름
+description: 무엇을, 언제 쓰는지 # Claude가 알아서 호출할지 판단하는 근거
+argument-hint: "<인자 설명>" # / 입력 시 자동완성에 표시
+disable-model-invocation: true # 직접 호출만 허용 (커밋처럼 부작용 있는 작업)
+allowed-tools: Bash(git diff *) Read # 이 명령 실행 중 확인 없이 허용할 도구
+---
+
+# 본문은 Claude에게 주는 지시입니다
+
+- 사용자가 / 뒤에 붙인 글자: $ARGUMENTS
+- 공백으로 나눈 n번째 인자: $0, $1, $2 ...
+- 실행 시점의 명령 결과를 끼워 넣기: !`git status --short`
+```
+
+알아 둘 점:
+
+- **`!` 명령은 호출 즉시 실행**되고, 결과가 프롬프트에 들어간 상태로 Claude가 읽습니다.
+  `allowed-tools`에 그 명령이 허용되어 있어야 합니다.
+- **`!` 명령이 0이 아닌 코드로 끝나면 명령어 전체가 실패**합니다.
+  실패할 수 있는 명령에는 `|| echo "..."`처럼 대체 출력을 붙이세요. `/pr-ko`가 그 예입니다.
+- **부작용이 있는 명령어**(커밋, 배포, 설정 변경)는 `disable-model-invocation: true`로
+  직접 부를 때만 실행되게 하세요.
+- **내장 명령과 이름이 겹치지 않게** 하세요. `/review`, `/commit`, `/init`, `/doctor` 등은 이미 있습니다.
+- `description`에 `"`로 시작하는 문장을 쓰면 YAML이 깨집니다. 따옴표로 감싸려면 문장 전체를 감싸세요.
+- `.claude/skills/`를 수정하면 실행 중인 세션에도 바로 반영됩니다.
+
+## 새 명령어 만들기
+
+1. `.claude/skills/<이름>/SKILL.md`를 만듭니다. 위 구조를 복사해 고칩니다.
+2. 본문의 `!` 명령을 터미널에서 한 번씩 직접 실행해 종료 코드가 0인지 확인합니다.
+3. Claude Code에서 `/` 를 입력해 목록에 보이는지 확인하고 호출해 봅니다.
+4. 나만 쓸 명령어는 `~/.claude/skills/`에 두면 모든 프로젝트에서 쓸 수 있습니다.
