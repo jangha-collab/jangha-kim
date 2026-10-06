@@ -189,14 +189,9 @@ python3 .claude/hooks/tests/test_block_dangerous.py -v   # 전체 결과 출력
 
 `log-tool-use.sh`는 호출 시각·이벤트·도구 이름·명령·파일 경로를 한 줄 JSON으로 남깁니다.
 
-```json
-{
-  "ts": "2026-10-06T09:42:13Z",
-  "event": "PreToolUse",
-  "tool": "Bash",
-  "command": "ls",
-  "file": null
-}
+```jsonl
+{"ts":"2026-10-06T09:42:13Z","event":"PreToolUse","tool":"Bash","command":"ls","file":null}
+{"ts":"2026-10-06T09:42:20Z","event":"PreToolUse","tool":"Edit","command":null,"file":"/home/user/project/README.md"}
 ```
 
 ## 직접 검증하기
