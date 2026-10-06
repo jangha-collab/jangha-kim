@@ -1,0 +1,4 @@
+# 훅이 생성하는 로컬 로그
+.claude/logs/
+# 개인 설정 오버라이드
+.claude/settings.local.json
