@@ -12,14 +12,9 @@ model: haiku
 
 한 줄에 JSON 하나다.
 
-```json
-{
-  "ts": "2026-10-06T09:42:13Z",
-  "event": "PreToolUse",
-  "tool": "Bash",
-  "command": "ls",
-  "file": null
-}
+```jsonl
+{"ts":"2026-10-06T09:42:13Z","event":"PreToolUse","tool":"Bash","command":"ls","file":null}
+{"ts":"2026-10-06T09:42:20Z","event":"PreToolUse","tool":"Edit","command":null,"file":"/home/user/project/README.md"}
 ```
 
 ## 순서
