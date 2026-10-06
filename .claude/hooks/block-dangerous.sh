@@ -1,43 +1,21 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) 훅: 위험한 셸 명령을 실행 전에 차단한다.
-# stdin으로 {"tool_name":"Bash","tool_input":{"command":"..."}} JSON을 받는다.
-# 차단 시 permissionDecision=deny JSON을 출력하면 Claude Code가 도구 호출을 거부한다.
-set -u
+# 실제 판단은 같은 폴더의 block_dangerous.py 가 한다.
+# 따옴표 안의 글자와 실제 명령을 구분하려면 셸처럼 토큰으로 나눠야 해서 파이썬을 쓴다.
+# 시험: python3 .claude/hooks/tests/test_block_dangerous.py
 
-input="$(cat)"
-cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // empty')"
-[ -z "$cmd" ] && exit 0
+script="${BASH_SOURCE[0]}"
+dir="${script%/*}"
+[ "$dir" = "$script" ] && dir="."
 
-deny() {
-  jq -n --arg reason "$1" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
-    }
-  }'
-  exit 0
-}
+for py in python3 python; do
+  if command -v "$py" >/dev/null 2>&1 \
+    && "$py" -c 'import sys; sys.exit(sys.version_info < (3, 9))' 2>/dev/null; then
+    exec "$py" -I "$dir/block_dangerous.py"
+  fi
+done
 
-# 1) 루트/홈 전체 삭제
-if printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])rm[[:space:]]+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)[[:space:]]+(/|~|\$HOME)(/?\*)?([[:space:]]|$)'; then
-  deny "차단됨: 루트/홈 디렉터리 전체 삭제(rm -rf /, ~)는 허용되지 않습니다."
-fi
-
-# 2) 기본 브랜치로 강제 푸시
-if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+push[^;&|]*(--force|-f)[^;&|]*[[:space:]](main|master)([[:space:]]|$)' \
-   || printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+push[^;&|]*[[:space:]](main|master)[^;&|]*(--force|[[:space:]]-f)([[:space:]]|$)'; then
-  deny "차단됨: main/master 브랜치로의 강제 푸시(--force)는 허용되지 않습니다."
-fi
-
-# 3) 추적되지 않은 파일/변경 사항을 통째로 날리는 명령
-if printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])git[[:space:]]+(clean[[:space:]]+-[a-zA-Z]*f|reset[[:space:]]+--hard)'; then
-  deny "차단됨: git clean -f / git reset --hard 는 작업 내용을 잃을 수 있어 허용되지 않습니다."
-fi
-
-# 4) 블록 디바이스/파일시스템 파괴
-if printf '%s' "$cmd" | grep -Eq '(^|[;&|[:space:]])(mkfs(\.[a-z0-9]+)?|dd[[:space:]]+[^;&|]*of=/dev/)'; then
-  deny "차단됨: 디스크/파일시스템을 파괴하는 명령은 허용되지 않습니다."
-fi
-
+# 파이썬 3.9 이상이 없으면 검사할 수 없다.
+# 모든 Bash 호출을 막아 버리지 않도록 통과시키되, 훅이 꺼져 있다는 경고를 띄운다.
+printf '%s\n' '{"systemMessage":"경고: Python 3.9 이상을 찾을 수 없어 위험 명령 차단 훅이 동작하지 않습니다."}'
 exit 0

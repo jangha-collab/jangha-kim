@@ -1,0 +1,142 @@
+# 차단 훅 시험 목록: 한 줄에 "기대값<TAB>명령".
+# 기대값은 deny(막아야 함) 또는 allow(통과해야 함). # 로 시작하는 줄과 빈 줄은 무시한다.
+# 여러 줄 명령과 heredoc, 현재 브랜치에 따라 달라지는 경우는 test_block_dangerous.py 안에 있다.
+
+# ---- 루트/홈 전체 삭제: 막아야 함
+deny	rm -rf /
+deny	rm -rf ~
+deny	sudo rm -fr /*
+deny	rm -Rf /
+deny	rm -r -f /
+deny	rm --recursive --force /
+deny	rm -rf -- /
+deny	rm -rf --no-preserve-root /
+deny	rm -r /
+deny	rm -rf ~/
+deny	rm -rf ~/*
+deny	rm -rf $HOME
+deny	rm -rf $HOME/
+deny	rm -rf ${HOME}
+deny	rm -rf "/"
+deny	rm -rf //
+deny	/bin/rm -rf /
+deny	\rm -rf /
+deny	cd /tmp && rm -rf /
+deny	echo ok; rm -rf ~
+deny	true || rm -rf ~
+deny	sudo -u root rm -rf /
+deny	env FOO=1 rm -rf /
+deny	FOO=1 rm -rf /
+deny	nohup rm -rf / &
+deny	timeout 10 rm -rf /
+deny	bash -c "rm -rf /"
+deny	sh -c 'sudo rm -fr ~'
+deny	bash -lc "cd / && rm -rf /"
+deny	eval "rm -rf /"
+deny	echo $(rm -rf /)
+deny	echo "$(rm -rf ~)"
+deny	echo `rm -rf /`
+deny	(rm -rf /)
+deny	if true; then rm -rf /; fi
+
+# ---- 루트/홈 전체 삭제: 통과해야 함
+allow	ls -la
+allow	rm -rf ./build
+allow	rm -rf node_modules
+allow	rm -rf /tmp/foo
+allow	rm -rf ~/projects/old
+allow	rm -rf "$HOME/tmp-cache"
+allow	rm -f /etc/foo.conf
+allow	rm /
+allow	echo "rm -rf /"
+allow	echo rm -rf /tmp/x
+allow	grep -rn "rm -rf /" .
+allow	python3 -c "print('rm -rf /')"
+allow	git commit -m "fix: rm -rf / 차단 우회 수정"
+allow	git commit -m "fix; rm -rf / 우회 수정"
+allow	# rm -rf /
+
+# ---- main/master 강제 푸시·삭제: 막아야 함
+deny	git push --force origin main
+deny	git push origin master -f
+deny	git push origin main --force
+deny	git push -fu origin main
+deny	git push origin +main
+deny	git push origin +master:master
+deny	git push -f origin HEAD:main
+deny	git push -f origin HEAD:refs/heads/main
+deny	git push --force-with-lease origin main
+deny	git push --force-with-lease=main:abc123 origin main
+deny	git -C . push -f origin main
+deny	git -c push.default=current push -f origin main
+deny	git push origin :main
+deny	git push origin --delete main
+deny	git push -d origin master
+deny	git push --force --all origin
+deny	git push --mirror -f origin
+
+# ---- main/master 강제 푸시·삭제: 통과해야 함
+allow	git push -u origin feature/x
+allow	git push --force origin feature/x
+allow	git push --force-with-lease origin feature/x
+allow	git push --follow-tags origin main
+allow	git push origin main
+allow	git push origin main-hotfix --force
+allow	git push -f origin main-hotfix
+allow	git push -f origin mainline
+allow	git push origin +feature
+allow	git push origin --delete old-feature
+allow	git push -o ci.skip origin main
+allow	printf 'git push --force origin main\n'
+allow	git log --grep="push --force"
+
+# ---- git reset --hard: 막아야 함
+deny	git reset --hard
+deny	git reset --hard HEAD~3
+deny	git reset -q --hard
+deny	git reset HEAD~1 --hard
+deny	git -C . reset --hard
+deny	git -c core.quotepath=off reset --hard origin/main
+
+# ---- git reset: 통과해야 함
+allow	git reset --soft HEAD~1
+allow	git reset HEAD file.txt
+allow	git reset --mixed
+allow	git commit -m "docs: git reset --hard 설명 추가"
+allow	git log --grep="reset --hard"
+
+# ---- git clean -f: 막아야 함
+deny	git clean -f
+deny	git clean -fd
+deny	git clean -xdf
+deny	git clean --force
+deny	git clean -d -f
+deny	git clean -d -x -f
+deny	git -C sub clean -fd
+
+# ---- git clean: 통과해야 함
+allow	git clean -n
+allow	git clean -nd
+allow	git clean -n -f
+allow	git clean --dry-run --force
+allow	git clean -fi
+allow	echo git clean -fd
+
+# ---- 디스크·파일시스템 파괴: 막아야 함
+deny	mkfs.ext4 /dev/sda1
+deny	/sbin/mkfs.ext4 /dev/sdb1
+deny	sudo mkfs -t ext4 /dev/sdb
+deny	dd if=/dev/zero of=/dev/sda
+deny	dd if=x.img of=/dev/disk2 bs=4M
+deny	sudo dd if=x.img of=/dev/nvme0n1
+
+# ---- 디스크·파일시스템 파괴: 통과해야 함
+allow	man mkfs
+allow	echo mkfs.ext4 /dev/sda1
+allow	echo dd if=x of=y.img
+allow	dd if=big.bin of=/dev/null bs=1M
+allow	dd if=/dev/zero of=./disk.img bs=1M count=10
+allow	dd if=/dev/urandom of=random.bin count=1
+
+# ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
+deny	echo "unterminated
