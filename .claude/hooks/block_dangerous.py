@@ -25,8 +25,11 @@ import sys
 
 MAIN_BRANCHES = {"main", "master"}
 SAFE_DEVICE = re.compile(
-    r"^/dev/(null|zero|full|random|urandom|stdin|stdout|stderr|tty|fd/\d+|pts/\d+|shm(/.*)?)$"
+    r"^/dev/(null|zero|full|random|urandom|stdin|stdout|stderr|tty|console|fd/\d+|pts/\d+|shm(/.*)?|tcp/.+|udp/.+)$"
 )
+# find 가 지울 대상을 좁히는 조건. 이 중 하나라도 (부정 없이) 있으면 "전체 삭제"로 보지 않는다.
+FIND_FILTERS = {"-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex",
+                "-lname", "-ilname", "-empty"}
 MAX_DEPTH = 8
 
 REASONS = {
@@ -39,6 +42,10 @@ REASONS = {
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
+    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션이나 tee 는 허용되지 않습니다. "
+    "/dev/null, /dev/stderr 같은 안전한 장치만 쓸 수 있습니다.",
+    "find": "차단됨: 루트(/)나 홈(~) 전체를 대상으로 파일을 지우는 find 명령은 허용되지 않습니다. "
+    "-name 이나 -path 로 대상을 좁히거나 시작 경로를 더 구체적으로 주세요.",
     "unparsable": "차단됨: 명령의 따옴표나 괄호 짝이 맞지 않아 안전한지 판단할 수 없습니다. 명령을 고쳐 다시 실행하세요.",
     "too_deep": "차단됨: 명령이 너무 깊게 중첩되어 안전한지 판단할 수 없습니다.",
     "bad_input": "차단됨: 훅 입력을 읽을 수 없어 안전을 위해 막았습니다.",
@@ -87,12 +94,14 @@ class Word:
 
 
 class Segment:
-    """단순 명령 하나. op 는 바로 앞의 제어 연산자, stdin 은 heredoc/here-string 내용."""
+    """단순 명령 하나. op 는 바로 앞의 제어 연산자, stdin 은 heredoc/here-string 내용,
+    writes 는 출력 리디렉션(> >> >| <> &> >&파일)이 쓰는 대상."""
 
     def __init__(self, op):
         self.op = op
         self.words = []
         self.stdin = []
+        self.writes = []
 
 
 class Lexer:
@@ -285,7 +294,7 @@ class Lexer:
     def run(self):
         s, n = self.s, self.n
         word = None
-        redirect = None  # 다음 단어가 무엇인지: file / heredoc / heredoc- / herestring
+        redirect = None  # 다음 단어가 무엇인지: in / out / dup_out / heredoc / heredoc- / herestring
 
         def ensure():
             nonlocal word
@@ -302,6 +311,11 @@ class Lexer:
                 self.pending.append((word.value, redirect == "heredoc-", word.quoted, seg))
             elif redirect == "herestring":
                 seg.stdin.append(word.value)
+            elif redirect == "out":
+                seg.writes.append(word)
+            elif redirect == "dup_out":  # >&2, >&- 는 서술자 복제, >&파일 은 파일에 쓰기
+                if not re.fullmatch(r"\d*-?", word.value):
+                    seg.writes.append(word)
             elif redirect is None:
                 seg.words.append(word)
             redirect = None
@@ -371,12 +385,21 @@ class Lexer:
                     finish()
                 op = REDIRECT.match(s, i).group(0)
                 i += len(op)
-                redirect = {"<<<": "herestring", "<<-": "heredoc-", "<<": "heredoc"}.get(op, "file")
+                redirect = {
+                    "<<<": "herestring",
+                    "<<-": "heredoc-",
+                    "<<": "heredoc",
+                    ">": "out",
+                    ">>": "out",
+                    ">|": "out",
+                    "<>": "out",
+                    ">&": "dup_out",
+                }.get(op, "in")
             elif c in ";&|()":
                 if s.startswith("&>", i):
                     finish()
                     i += 3 if s.startswith("&>>", i) else 2
-                    redirect = "file"
+                    redirect = "out"
                     continue
                 if c == "(" and word is not None and not word.quoted and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\+?=", word.value):
                     j = self.match_paren(i)  # 배열 대입 files=(a b c)
@@ -798,6 +821,71 @@ def check_mkfs(name, args, cwd):
     return None
 
 
+def is_device(word, state):
+    """단어가 가리키는 경로가 안전 목록에 없는 /dev 장치인가."""
+    value = substitute_vars(word.value, state["vars"])
+    path = resolve_path(value, word.tilde, state["cwd"], strip_glob=False)
+    return bool(path and path.startswith("/dev/") and not SAFE_DEVICE.match(path))
+
+
+def check_writes(seg, state):
+    """> >> >| <> &> >&파일 리디렉션이 장치에 쓰는지 본다."""
+    for w in seg.writes:
+        if is_device(w, state):
+            return REASONS["device_write"]
+    return None
+
+
+def parse_find(words, state):
+    """find 인자를 읽어 (루트·홈에서 시작하는가, 지우는 동작이 있는가, 대상을 좁혔는가)를 돌려준다."""
+    vals = [w.value for w in words]
+    i = 0
+    while i < len(vals) and (vals[i] in ("-H", "-L", "-P", "-D") or vals[i].startswith("-O")):
+        i += 2 if vals[i] == "-D" else 1
+    starts = []
+    while i < len(vals) and not (vals[i].startswith("-") or vals[i] in ("(", ")", "!", ",")):
+        starts.append(words[i])
+        i += 1
+    expr = vals[i:]
+
+    danger = {"/"} | home_dirs()
+    if starts:
+        from_danger = any(
+            resolve_path(substitute_vars(w.value, state["vars"]), w.tilde, state["cwd"], strip_glob=False) in danger
+            for w in starts
+        )
+    else:  # 시작 경로가 없으면 현재 폴더
+        from_danger = state["cwd"] in danger
+
+    deletes = filtered = False
+    k = 0
+    while k < len(expr):
+        t = expr[k]
+        if t == "-delete":
+            deletes = True
+        elif t in ("-exec", "-execdir", "-ok", "-okdir"):
+            command = expr[k + 1] if k + 1 < len(expr) else ""
+            if t in ("-exec", "-execdir") and posixpath.basename(command) in ("rm", "unlink", "shred"):
+                deletes = True
+            while k + 1 < len(expr) and expr[k + 1] not in (";", "+"):
+                k += 1
+            k += 1  # 종결자 ; 또는 +
+        elif t in FIND_FILTERS:
+            if not (k > 0 and expr[k - 1] in ("!", "-not")):
+                filtered = True
+            if t != "-empty":
+                k += 1  # 패턴 값
+        k += 1
+    return from_danger, deletes, filtered
+
+
+def check_find(arg_words, state):
+    from_danger, deletes, filtered = parse_find(arg_words, state)
+    if from_danger and deletes and not filtered:
+        return REASONS["find"]
+    return None
+
+
 def echo_args(seg):
     """앞 구간이 echo/printf 면 그 인자를 돌려준다 (파이프로 넘어가는 내용)."""
     if seg is None:
@@ -809,6 +897,10 @@ def echo_args(seg):
 
 
 def check_segment(seg, piped_from, state, depth):
+    reason = check_writes(seg, state)
+    if reason:
+        return reason
+
     words, nested, from_stdin = strip_prefixes(seg.words)
     for text in nested:
         reason = analyze(text, state["cwd"], depth + 1)
@@ -833,6 +925,14 @@ def check_segment(seg, piped_from, state, depth):
     name = posixpath.basename(words[0].value)
     arg_words = words[1:]
     args = [w.value for w in arg_words]
+
+    if from_stdin and piped_from is not None and name in ("rm", "unlink", "shred"):
+        # find / ... | xargs rm : find 가 루트·홈 전체를 넘기면 막는다
+        source, _, _ = strip_prefixes(piped_from.words)
+        if source and posixpath.basename(source[0].value) == "find":
+            from_danger, _, filtered = parse_find(source[1:], state)
+            if from_danger and not filtered:
+                return REASONS["find"]
 
     if name == "cd":
         targets = [w for w in arg_words if not (w.value.startswith("-") and w.value != "-")]
@@ -871,6 +971,13 @@ def check_segment(seg, piped_from, state, depth):
         return check_git(args, state, depth)
     if name == "dd":
         return check_dd(args, state["cwd"])
+    if name == "find":
+        return check_find(arg_words, state)
+    if name == "tee":
+        for w in arg_words:
+            if not w.value.startswith("-") and is_device(w, state):
+                return REASONS["device_write"]
+        return None
     return check_mkfs(name, args, state["cwd"])
 
 
@@ -891,7 +998,7 @@ def analyze(command, cwd, depth=0):
     state = {"cwd": cwd, "vars": {}}
     previous = None
     for seg in lexer.segments:
-        if not seg.words and not seg.stdin:
+        if not seg.words and not seg.stdin and not seg.writes:
             continue
         piped_from = previous if seg.op in ("|", "|&") else None
         reason = check_segment(seg, piped_from, state, depth)
