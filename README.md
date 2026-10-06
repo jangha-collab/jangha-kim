@@ -128,36 +128,44 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 `block-dangerous.sh`는 다음을 막습니다.
 
-| 차단 대상             | 예시                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| 루트/홈 재귀 삭제     | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`               |
-| main/master 강제 푸시 | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease` |
-| main/master 원격 삭제 | `git push origin :main`, `git push origin --delete main`                                                 |
-| 작업 내용 유실        | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`               |
-| 디스크 파괴           | `mkfs.*`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                |
-| 해석할 수 없는 명령   | 따옴표 짝이 맞지 않는 명령, JSON이 아닌 훅 입력                                                          |
+| 차단 대상                 | 예시                                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`               |
+| main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease` |
+| main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                 |
+| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`               |
+| main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                               |
+| 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`         |
+| 해석할 수 없는 명령       | 따옴표·괄호 짝이 맞지 않는 명령, JSON이 아닌 훅 입력, 검사 중 오류                                       |
 
 다음과 같은 변형도 같은 명령으로 알아봅니다.
 
-- `sudo`, `env`, `nohup`, `timeout`, 변수 대입(`FOO=1 rm ...`)이 앞에 붙은 경우
-- `git -C 경로 ...`, `git -c 설정=값 ...`처럼 git 전역 옵션이 붙은 경우
-- `;`, `&&`, `||`, `|`, 여러 줄, `if ...; then ...; fi` 안에 들어 있는 경우
-- `bash -c "..."`, `eval "..."`, `$(...)`, 백틱, 따옴표 없는 heredoc 안의 `$(...)`
-- refspec 없이 `git push -f`만 친 경우에는 현재 브랜치가 main/master인지 확인합니다
+- `sudo`, `su -c`, `env`, `nohup`, `timeout`, `nice`, `time`, `exec`, `xargs`, 변수 대입(`FOO=1 rm ...`)이 앞에 붙은 경우
+- `git -C 경로 ...`, `git -c 설정=값 ...`, `git submodule foreach ...`처럼 git 전역 옵션이나 하위 명령을 거치는 경우
+- `;`, `&&`, `||`, `|`, 여러 줄, `if`/`for`/`case`, 함수 정의, `( )`·`{ }` 묶음 안에 들어 있는 경우
+- `bash -c "..."`, `eval "..."`, `$(...)`, 백틱, `<(...)`, 따옴표 없는 heredoc 안의 `$(...)`
+- 셸에 명령을 stdin으로 넘기는 경우: `bash <<'EOF'`, `bash <<< "..."`, `echo "..." | bash`
+- 옵션 축약(`--rec`, `--har`), 경로 표기(`/..`, `~/./`, `//dev/sda`), 중괄호(`{/,/tmp}`), `$'/'`
+- 같은 명령 안의 `cd`와 변수 대입을 따라가 실제 대상을 계산합니다: `cd ~ && rm -rf *`, `T=/; rm -rf $T`
+- 앞쪽 변수가 비면 루트가 되는 대상(`rm -rf "$DIR"/*`)도 막고, `"${DIR:?}"` 형태를 쓰라고 안내합니다
+- refspec 없이 `git push -f`만 치거나 `HEAD`·`@`·`$(...)`로 브랜치를 준 경우에는 현재 브랜치가 main/master인지 확인합니다
 
 다음은 통과합니다.
 
 - 일상적인 명령: `rm -rf ./build`, `rm -rf ~/projects/old`, `git push --force origin feature/x`,
   `git push --follow-tags origin main`, `git clean -n`, `git reset --soft HEAD~1`, `dd ... of=/dev/null`
-- **따옴표 안의 글자**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
-  `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `man mkfs`
+- **따옴표 안의 글자와 주석**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
+  `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `# don't` 같은 주석, `man mkfs`
+- 마른 실행과 안전한 대상: `git push -n -f origin main`, `mkfs.ext4 -F rootfs.img`, `dd ... of=/dev/shm/x`
 
-> 동작 방식: 명령 문자열을 정규식으로 훑지 않고, 셸처럼 토큰으로 나눈 뒤 **명령 위치에 있는 프로그램**과
-> 그 인자만 검사합니다. 그래서 따옴표 안의 글자는 오탐하지 않고, 옵션 순서나 표기를 바꿔도 속지 않습니다.
+> 동작 방식: 명령 문자열을 정규식으로 훑지 않습니다. 작은 셸 어휘 분석기로 따옴표·주석·heredoc·명령 치환을
+> 셸과 같은 규칙으로 해석한 뒤 **명령 위치에 있는 프로그램**과 그 실제 인자만 검사합니다.
+> 따옴표나 괄호 짝이 맞지 않는 명령, 검사 중 오류, 너무 깊은 중첩은 안전을 위해 막습니다.
 > 이 해석에는 Python 3.9 이상이 필요합니다. 파이썬이 없으면 훅은 모든 명령을 통과시키고 경고만 띄웁니다.
 
-> 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 변수에 경로를 담아 지우거나(`d=/; rm -rf $d`),
-> 스크립트 파일을 만들어 실행하는 식으로 일부러 꾸민 명령까지 막지는 못합니다.
+> 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 실행해 봐야 값을 아는 명령
+> (`$(echo rm) -rf /`, `${IFS}`로 단어 나누기, 실행 중에 만든 스크립트)까지 막지는 못합니다.
+> `find ... -delete`, `> /dev/sdb` 같은 리디렉션, `git checkout -- .`처럼 지금 범위 밖의 위험 명령도 통과합니다.
 
 훅을 고친 뒤에는 시험을 돌리세요. 위험한 시험 문자열은 시험 파일 안에만 있으므로, 터미널에 직접 치면 그 명령 자체가 막힙니다.
 
@@ -166,7 +174,12 @@ python3 .claude/hooks/tests/test_block_dangerous.py      # 실패한 경우만 �
 python3 .claude/hooks/tests/test_block_dangerous.py -v   # 전체 결과 출력
 ```
 
-시험 목록은 `.claude/hooks/tests/block-dangerous.cases`에 한 줄에 `기대값<TAB>명령` 형식으로 추가합니다.
+시험 목록은 두 곳에 있습니다.
+
+| 파일                                        | 내용                                                                                                                                                       |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.claude/hooks/tests/block-dangerous.cases` | 기본 사례. 한 줄에 `기대값<TAB>명령`                                                                                                                       |
+| `.claude/hooks/tests/audit-cases.json`      | `hook-auditor`가 찾은 우회·오탐 사례. `{MAIN}`·`{FEAT}`는 시험용 임시 저장소로 바뀝니다. `skip`이 붙은 사례는 범위 밖이거나 정적으로 알 수 없어 건너뜁니다 |
 
 ### 4. 후처리하는 방법 (PostToolUse)
 

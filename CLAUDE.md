@@ -8,9 +8,12 @@ Claude Code 자동화 설정(훅·슬래시 명령어·서브에이전트)을 �
 
 ## 검증 명령
 
-빌드·테스트 러너는 없다. 훅은 stdin JSON을 흉내 내어 직접 실행해 확인한다.
+빌드 시스템은 없다. 차단 훅에는 시험이 있고, 훅을 고친 뒤에는 반드시 돌린다. 다른 훅은 stdin JSON을 흉내 내어 직접 실행해 확인한다.
 
 ```bash
+# 차단 훅 시험 (실패만 출력, -v 는 전체 출력). 실패가 0개여야 한다
+python3 .claude/hooks/tests/test_block_dangerous.py
+
 export CLAUDE_PROJECT_DIR="$PWD"
 
 # 차단되어야 함 → permissionDecision: deny JSON 출력
@@ -33,18 +36,19 @@ git log --oneline origin/main..HEAD 2>/dev/null || echo "(origin/main을 찾을 
 
 `.claude/settings.json`이 세 훅을 등록한다. 세 스크립트가 서로 다른 패턴을 대표하므로 새 훅은 가장 가까운 것을 본뜬다.
 
-| 스크립트                           | 이벤트 / 매처                                        | 역할                                                                       |
-| ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- |
-| `.claude/hooks/block-dangerous.sh` | `PreToolUse` / `Bash`                                | 위험 명령을 정규식으로 찾아 `permissionDecision: deny` JSON을 출력해 차단  |
-| `.claude/hooks/log-tool-use.sh`    | `PreToolUse` / `Bash\|Write\|Edit\|Read\|Glob\|Grep` | 호출 내역을 `.claude/logs/tool-use.jsonl`(gitignore)에 한 줄 JSON으로 기록 |
-| `.claude/hooks/format-file.sh`     | `PostToolUse` / `Write\|Edit`                        | 쓰여진 파일을 prettier로 포맷. 실패해도 `exit 0`                           |
+| 스크립트                           | 이벤트 / 매처                                        | 역할                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `.claude/hooks/block-dangerous.sh` | `PreToolUse` / `Bash`                                | 진입점. 본체 `block_dangerous.py`가 명령을 셸처럼 해석해 위험 명령이면 `permissionDecision: deny` JSON을 출력해 차단 |
+| `.claude/hooks/log-tool-use.sh`    | `PreToolUse` / `Bash\|Write\|Edit\|Read\|Glob\|Grep` | 호출 내역을 `.claude/logs/tool-use.jsonl`(gitignore)에 한 줄 JSON으로 기록                                           |
+| `.claude/hooks/format-file.sh`     | `PostToolUse` / `Write\|Edit`                        | 쓰여진 파일을 prettier로 포맷. 실패해도 `exit 0`                                                                     |
 
 훅 스크립트 공통 규약:
 
-- 입력은 `jq -r`로 파싱하고 결과는 반드시 따옴표로 감싼 변수에 담는다. `xargs`로 넘기지 않는다.
+- 셸 훅의 입력은 `jq -r`로 파싱하고 결과는 반드시 따옴표로 감싼 변수에 담는다. `xargs`로 넘기지 않는다. 따옴표·heredoc까지 해석해야 하는 차단 훅만 예외로 파이썬(3.9 이상)을 쓴다.
 - 차단은 `hookSpecificOutput.permissionDecision = "deny"` JSON 출력으로 한다. 종료 코드 2 방식은 쓰지 않는다.
 - 차단하지 않을 때는 아무것도 출력하지 않고 `exit 0`.
-- `block-dangerous.sh`의 매처는 **명령 문자열 전체**를 본다. heredoc이나 따옴표 안에 패턴이 들어 있기만 해도 차단된다. 이 훅은 이 저장소에서 일하는 Claude 자신과 서브에이전트에도 적용되므로, 위험 패턴이 포함된 시험 문자열은 Bash 명령에 직접 쓰지 말고 임시 파일에 적은 뒤 실행한다.
+- 차단 훅은 명령을 셸처럼 해석해 **실제로 실행될 명령만** 검사한다. 따옴표 안의 글자, 주석, 따옴표 heredoc 본문은 막지 않지만 `$(...)`, `bash -c`, `eval` 안쪽은 검사한다. 따옴표나 괄호 짝이 맞지 않는 명령은 막는다.
+- 이 훅은 이 저장소에서 일하는 Claude 자신과 서브에이전트에도 적용된다. 위험 명령을 시험하려면 Bash에 직접 치지 말고 `.claude/hooks/tests/`의 사례 파일에 추가한 뒤 시험 스크립트로 돌린다.
 - `format-file.sh` 때문에 `.md`, `.json`, `.yml` 등을 Write/Edit하면 prettier가 즉시 재포맷한다. 편집 직후 내용을 다시 읽어야 하면 그 점을 감안한다.
 
 슬래시 명령어(`.claude/skills/<이름>/SKILL.md`):
