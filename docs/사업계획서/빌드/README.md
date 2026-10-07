@@ -33,6 +33,7 @@ python3 docs/사업계획서/빌드/post_ppt.py /tmp/out.pptx docs/사업계획�
 `images/`에 PPT와 Word에 쓰는 이미지가 있다.
 
 - 해외 제품 사진 4점(VITRONIC, Ekin, Hikvision, GET): 각 제조사의 발표자료·리플릿·브로슈어·매뉴얼에서 가져왔다. Dahua iPatrol은 이미지 자료가 없다. 외부 제출 전 사용 허락을 확인한다.
+- `Hikvision_System.jpg`: Hikvision 리플릿 2쪽의 시스템 구성도를 잘라 낸 그림(3.5장, 벤치마킹 슬라이드).
 - 국내 규격서 사진 5점(쏘나타, 렉스턴, 싼타페, 통합디바이스, 경기북부 자율방범대 경광등): 나눔컴퍼니 규격서와 입찰요청서에서 가져왔다.
 - 특허 도면 4점: 엠클라비스 경광등 특허 조사(2026.4)에 수록된 공개 도면이다.
 - `fig_overseas_products.jpg`, `fig_domestic_specs.jpg`: 위 사진을 묶어 Word 문서에 넣는 합성 그림이다.
