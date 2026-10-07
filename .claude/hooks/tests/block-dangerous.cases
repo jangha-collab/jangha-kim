@@ -314,5 +314,66 @@ allow	mv x.log /dev/null
 allow	cp --sparse always /dev/sda disk.img
 allow	echo mv x.img /dev/sdb
 
+# ---- find -exec 셸 스크립트로 지우기: 막아야 함
+deny	find / -exec sh -c 'rm -rf "$1"' _ {} \;
+deny	find ~ -type f -exec bash -c 'rm -f "$@"' _ {} +
+deny	find ~ -execdir sh -c 'unlink "$0"' {} \;
+deny	find ~ -exec sh -c 'echo "$1"; rm "$1"' _ {} \;
+deny	find ~ -exec sh -c 'shred -u "$1" && echo done' _ {} \;
+deny	find ~ -exec sudo sh -c 'rm -rf "$1"' _ {} \;
+deny	find ~ -exec env sh -c 'rm "$1"' _ {} \;
+deny	find ~ -exec sh -c 'bash -c "rm \$1"' _ {} \;
+deny	find / -print0 | xargs -0 sh -c 'rm -rf "$@"' _
+deny	find ~ -type f | xargs -I{} sh -c 'rm "{}"'
+
+# ---- find -exec 셸 스크립트: 통과해야 함
+allow	find . -exec sh -c 'rm -rf "$1"' _ {} \;
+allow	find ~ -name '*.tmp' -exec sh -c 'rm "$1"' _ {} \;
+allow	find ~ -exec sh -c 'echo "$1"' _ {} \;
+allow	find / -name '*.log' -exec sh -c 'gzip "$1"' _ {} \;
+allow	find ~ -type f -exec sh -c 'wc -l "$1"' _ {} +
+allow	find ~ -ok sh -c 'rm "$1"' _ {} \;
+allow	find ~ -type f | xargs sh -c 'wc -l "$@"' _
+
+# ---- git checkout 으로 작업 폴더 전체 되돌리기: 막아야 함
+deny	git checkout -- .
+deny	git checkout .
+deny	git checkout ./
+deny	git checkout HEAD -- .
+deny	git checkout HEAD .
+deny	git checkout main -- .
+deny	git checkout -- :/
+deny	git checkout :/
+deny	git checkout -- ':(top)'
+deny	git checkout -- '*'
+deny	git checkout -- ..
+deny	git checkout -- ../..
+deny	git checkout -- ./*
+deny	git checkout -q -- .
+deny	git checkout --ours -- .
+deny	git checkout -f
+deny	git checkout -f main
+deny	git checkout --force feature/x
+deny	git checkout --forc main
+deny	git checkout -fb hotfix
+deny	git -C . checkout -- .
+deny	git stash && git checkout -- .
+
+# ---- git checkout: 통과해야 함
+allow	git checkout main
+allow	git checkout -b feature/new
+allow	git checkout -b feature/new origin/main
+allow	git checkout -B feature/new
+allow	git checkout -
+allow	git checkout -- src/app.ts
+allow	git checkout HEAD -- README.md
+allow	git checkout main -- package.json package-lock.json
+allow	git checkout -- src/
+allow	git checkout -p -- .
+allow	git checkout --patch .
+allow	git checkout --orphan gh-pages
+allow	git checkout -f -- README.md
+allow	git commit -m "git checkout -- . 차단 추가"
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated

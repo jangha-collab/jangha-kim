@@ -131,10 +131,10 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 | 차단 대상                 | 예시                                                                                                                                                                                                                                                                                                             |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                                                                                                                                                                       |
-| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`                                                                                                                                                                                                            |
+| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`, `find ~ -exec sh -c 'rm "$1"' _ {} \;`, `find / \| xargs sh -c 'rm "$@"' _`                                                                                                                               |
 | main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                                                                                                                                                                         |
 | main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                                                                                                                                                                         |
-| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`                                                                                                                                                                                                                       |
+| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`, `git checkout -- .`·`git checkout .`·`git checkout HEAD :/`처럼 작업 폴더 전체를 되돌리는 checkout, `git checkout -f main`                                                                                           |
 | main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                                                                                                                                                                       |
 | 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                                                                                                                                                                 |
 | 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img`, `rsync x.img /dev/sdb`, `rsync x.img host:/dev/sdb`, `ddrescue -f /dev/sda /dev/sdb map`, `install -m 644 x.img /dev/sdb`, `mv x.img /dev/sdb` |
@@ -156,6 +156,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 - 일상적인 명령: `rm -rf ./build`, `rm -rf ~/projects/old`, `git push --force origin feature/x`,
   `git push --follow-tags origin main`, `git clean -n`, `git reset --soft HEAD~1`, `dd ... of=/dev/null`
+- 파일을 지정한 되돌리기: `git checkout -- src/app.ts`, `git checkout main -- package.json`, 하나씩 묻는 `git checkout -p -- .`
 - **따옴표 안의 글자와 주석**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
   `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `# don't` 같은 주석, `man mkfs`
 - 마른 실행과 안전한 대상: `git push -n -f origin main`, `mkfs.ext4 -F rootfs.img`, `dd ... of=/dev/shm/x`
@@ -170,7 +171,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 > 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 실행해 봐야 값을 아는 명령
 > (`$(echo rm) -rf /`, `${IFS}`로 단어 나누기, 실행 중에 만든 스크립트)까지 막지는 못합니다.
-> `find -exec sh -c 'rm ...'`, `git checkout -- .`·`git restore .`·`git stash drop`처럼
+> `git restore .`·`git stash drop`·`git branch -D`처럼
 > 지금 범위 밖의 위험 명령도 통과합니다. 장치를 **읽는** 명령(`cp /dev/sda backup.img`, `pv /dev/sda > disk.img`,
 > `ddrescue /dev/sda disk.img disk.map`, `rsync --copy-devices /dev/sda backup.img`)은 막지 않습니다.
 
