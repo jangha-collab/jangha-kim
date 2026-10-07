@@ -346,13 +346,13 @@ for sh in cover.shapes:
         font_only(r)
     elif sh.name.startswith("부제목"):
         paras = sh.text_frame.paragraphs
-        paras[0].runs[0].text = "26/10/06"
+        paras[0].runs[0].text = __import__("datetime").datetime.now(__import__("zoneinfo").ZoneInfo("Asia/Seoul")).strftime("%y/%m/%d")
         for pp in paras:
             for r in pp.runs:
                 font_only(r)
 cover.notes_slide.notes_text_frame.text = (
     "내부 검토용 초안. 사업계획서(docx)와 개발계획 과제제안서(docx)의 핵심을 슬라이드로 옮긴 자료입니다. "
-    "과제 금액·일정과 언론 보도 수치는 원문 확인 전 값이므로 22장을 함께 보세요.")
+    "과제 금액·일정과 언론 보도 수치는 원문 확인 전 값이므로 23장을 함께 보세요.")
 
 # ================================================================================
 # 2. summary
@@ -426,10 +426,60 @@ tbox(s, L + 220000, yb + 300000, W - 440000, 1500000, [
     size=13, space=6)
 
 # ================================================================================
+# 4-2. patent drawings of overseas products
+# ================================================================================
+import os
+from PIL import Image as _PILImage
+
+IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
+
+
+def fit_picture(slide, path, x, y, w, h, name):
+    with _PILImage.open(path) as im:
+        iw, ih = im.size
+    sc = min(w / iw, h / ih)
+    pw, ph = int(iw * sc), int(ih * sc)
+    pic = slide.shapes.add_picture(path, Emu(x + (w - pw) // 2), Emu(y + (h - ph) // 2), Emu(pw), Emu(ph))
+    pic.name = name
+    return pic
+
+
+s = new_slide("해외 제품의 일체형 구조: 공개 특허 도면", "해외 제조사는 경광등 하우징 안에 센서를 넣는 구조를 이미 특허로 확보했다",
+              "도면은 엠클라비스 '경광등 관련 특허 조사'(2026.4)에 수록된 각 특허의 공개 도면이다. 제품 사진이 아니며, VITRONIC·Hikvision·GET·Dahua는 "
+              "조사한 특허 도면이 없어 제외했다. 제조사 사이트에 접속할 수 없어 제품 사진은 넣지 못했다. 권리 상태: US9002313B2 2026.8.30 만료, "
+              "US9791766B2 2034.1, US9928737B2 2034.12, US10946793B1 2040.4 만료 예정(특허 조사 기준).")
+cells = [
+    ("US9002313B2_FederalSignal.png", "Federal Signal · US9002313B2",
+     "경광등 하우징 안에 레이더·카메라·번호판 인식·GPS·통신 모듈을 선택 탑재", "2026.8.30 만료, 구조 자유 실시", "그림: 하우징 내부 구성"),
+    ("US9791766B2_Ekin.png", "Ekin · US9791766B2",
+     "복수 카메라와 LED, 경광등을 한 몸체로 묶은 차량 장착형 장치", "2034.1까지 유효", "그림: 라이트바 외형"),
+    ("US10946793B1_Ekin.png", "Ekin · US10946793B1",
+     "순찰차에 후장착하는 스마트 라이트바, 센서 결과로 위협을 평가해 경고", "2040.4까지 유효", "그림: 순찰차 장착 형태"),
+    ("US9928737B2_Ekin.png", "Ekin · US9928737B2",
+     "번호판 인식과 레이더 속도정보를 연계하는 차량 탑재형 구조", "2034.12까지 유효", "그림: 라이트바 구조"),
+]
+cwid = (W - 200000) // 2
+chei = 2300000
+for i, (img, ttl, desc, stat, cap) in enumerate(cells):
+    x = L + (i % 2) * (cwid + 200000)
+    y = 1200000 + (i // 2) * (chei + 150000)
+    card(s, x, y, cwid, chei)
+    bgbox = card(s, x + 120000, y + 120000, 2900000, chei - 240000, fill=WHITE, radius=0.03)
+    fit_picture(s, os.path.join(IMG_DIR, img), x + 160000, y + 160000, 2820000, chei - 320000, "특허 도면 " + ttl)
+    tbox(s, x + 3150000, y + 150000, cwid - 3270000, chei - 300000, [
+        (ttl, {"size": 14, "bold": True, "color": NAVY, "space": 6}),
+        (desc, {"size": 12, "space": 6}),
+        ("권리 상태: " + stat, {"size": 11, "color": GRAY, "space": 3}),
+        (cap, {"size": 11, "color": GRAY})], size=12)
+tbox(s, L, 6030000, W, 260000,
+     ["출처: 엠클라비스 경광등 특허 조사(2026.4) 수록 공개 도면. 제품 사진이 아니며 VITRONIC·Hikvision·GET·Dahua는 조사한 특허 도면이 없어 제외했다."],
+     size=10, color=GRAY)
+
+# ================================================================================
 # 5. police need table
 # ================================================================================
 s = new_slide("현장 경찰관이 필요로 하는 이유 5가지", "경찰관 선호도 조사는 찾지 못했다. 아래는 필요의 근거이며 선호는 실증에서 검증한다",
-              "근거 수준은 보도 수치의 신뢰도와 제품과의 직접성으로 판단. 수치는 검색 요약 기준이며 원문 대조가 필요함. 출처 목록은 23장.")
+              "근거 수준은 보도 수치의 신뢰도와 제품과의 직접성으로 판단. 수치는 검색 요약 기준이며 원문 대조가 필요함. 출처 목록은 24장.")
 rows = [["번호", "경찰관이 선호할 이유(가설)", "핵심 근거", "근거 수준"],
         ["1", "사고 처리 중 뒤에서 오는 차량이 가장 무섭다", "고속도로순찰 업무 중 교통사고로 다치거나 숨진 경찰관 5년간 34명, 2026년 1월 사고 수습 중 경찰관 사망", "강함"],
         ["2", "2차사고는 한 번 나면 치명적이다", "2차사고 치사율이 일반사고의 약 5~6.5배, 2026년 1~5월 고속도로 2차사고 사망자 급증", "강함"],
@@ -825,6 +875,7 @@ right = ["해외·정책·내부 자료",
          "미국 NIJ 보고서  ojp.gov/pdffiles1/nij/252032.pdf",
          "NIOSH  cdc.gov/niosh/newsroom/feature/struck-by.html",
          "경찰청 K-치안산업 100 (2024.6)",
+         "특허 도면: US9002313B2, US9791766B2, US10946793B1, US9928737B2 (엠클라비스 특허 조사 2026.4)",
          "경찰청 종합쇼핑몰 납품요구 물품 내역 (2024)",
          "엠클라비스 5사 경광등 비교표 (2025.10.31)",
          "엠클라비스 경광등 관련 전세계 동향 (2025.10.31)",
