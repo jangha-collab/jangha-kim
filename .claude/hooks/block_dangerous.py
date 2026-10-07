@@ -42,7 +42,7 @@ REASONS = {
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
-    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, pv -o, rsync, ddrescue 는 허용되지 않습니다. "
+    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, mv, install, pv -o, rsync, ddrescue 는 허용되지 않습니다. "
     "/dev/null, /dev/stderr 같은 안전한 장치만 쓸 수 있습니다.",
     "find": "차단됨: 루트(/)나 홈(~) 전체를 대상으로 파일을 지우는 find 명령은 허용되지 않습니다. "
     "-name 이나 -path 로 대상을 좁히거나 시작 경로를 더 구체적으로 주세요.",
@@ -886,32 +886,59 @@ def check_find(arg_words, state):
     return None
 
 
-CP_VALUE_SHORT = {"-S", "-t"}
-CP_VALUE_LONG = {"--suffix", "--target-directory"}
+def make_word(value):
+    w = Word()
+    w.value = value
+    return w
 
 
-def check_cp(arg_words, state):
-    """cp 의 대상(마지막 인자 또는 -t 디렉터리)이 장치면 막는다. 원본이 장치인 것(백업)은 괜찮다."""
-    target, positional, after = None, [], False
+# GNU coreutils 9.4 --help 기준: (값을 받는 짧은 옵션 글자, 값을 다음 인자로 받을 수 있는 긴 옵션)
+# --backup[=X], --preserve[=X], --context[=X] 처럼 값이 선택인 옵션은 '=' 로만 값을 붙이므로 넣지 않는다.
+COPY_LIKE = {
+    "cp": (set("St"), {"--suffix", "--target-directory", "--sparse", "--no-preserve"}),
+    "mv": (set("St"), {"--suffix", "--target-directory"}),
+    "install": (set("gmoSt"), {"--group", "--mode", "--owner", "--suffix", "--target-directory", "--strip-program"}),
+}
+
+
+def check_copy_like(name, arg_words, state):
+    """cp·mv·install 의 대상(마지막 인자 또는 -t 디렉터리)이 장치면 막는다.
+
+    원본이 장치인 것(cp /dev/sda backup.img 같은 백업)은 괜찮다. mv 로 장치 위에 덮어쓰면
+    장치 파일이 일반 파일로 바뀌고, install 은 cp 처럼 내용을 쓴다.
+    """
+    short_value, long_value = COPY_LIKE[name]
+    values = [w.value for w in arg_words]
+    if name == "install" and ("--directory" in values or has_short_flag(values, "d", short_value)):
+        return None  # install -d 는 디렉터리만 만든다
+
+    target = None
     words = iter(arg_words)
     for w in words:
         a = w.value
-        if after or not a.startswith("-") or a == "-":
-            positional.append(w)
-        elif a == "--":
-            after = True
-        elif a in ("-t", "--target-directory"):
-            target = next(words, None)
-        elif a.startswith("--target-directory="):
-            target = Word()
-            target.value = a.split("=", 1)[1]
-        elif a.startswith("-t") and not a.startswith("--"):
-            target = Word()
-            target.value = a[2:]
-        elif a in CP_VALUE_SHORT or a in CP_VALUE_LONG:
-            next(words, None)
-    if target is None and len(positional) >= 2:
-        target = positional[-1]
+        if a == "--":
+            break
+        if a.startswith("--"):
+            option = a.split("=", 1)[0]
+            if long_is(option, "--target-directory", 4):
+                target = make_word(a.split("=", 1)[1]) if "=" in a else next(words, None)
+            elif "=" not in a and a in long_value:
+                next(words, None)
+        elif a.startswith("-") and len(a) > 1:
+            for k, ch in enumerate(a[1:]):
+                if ch == "t":
+                    rest = a[k + 2 :]
+                    target = make_word(rest) if rest else next(words, None)
+                    break
+                if ch in short_value:
+                    if k == len(a) - 2:
+                        next(words, None)
+                    break
+
+    if target is None:
+        positional = positional_args(arg_words, short_value, long_value)
+        if len(positional) >= 2:
+            target = positional[-1]
     if target is not None and is_device(target, state):
         return REASONS["device_write"]
     return None
@@ -1119,8 +1146,8 @@ def check_segment(seg, piped_from, state, depth):
         return check_dd(args, state["cwd"])
     if name == "find":
         return check_find(arg_words, state)
-    if name == "cp":
-        return check_cp(arg_words, state)
+    if name in COPY_LIKE:
+        return check_copy_like(name, arg_words, state)
     if name == "pv":
         return check_pv(arg_words, state)
     if name == "rsync":
