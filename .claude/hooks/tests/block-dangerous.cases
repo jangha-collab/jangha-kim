@@ -204,5 +204,43 @@ allow	dd if=/dev/sda of=backup.img < /dev/null
 allow	echo progress > /dev/tty
 allow	head -c 10 /dev/urandom > key.bin
 
+# ---- cp·pv 로 장치에 쓰기: 막아야 함
+deny	cp x.img /dev/sdb
+deny	cp -v x.img /dev/sda
+deny	sudo cp x.img /dev/nvme0n1
+deny	cp --sparse=always x.img /dev/sdb
+deny	cp -S .bak x.img /dev/sdb
+deny	cp -- x.img /dev/sdb
+deny	cp -t /dev/sdb x.img
+deny	cp -t/dev/sdb x.img
+deny	cp --target-directory=/dev/sdb x.img
+deny	cp --target-directory /dev/sdb x.img
+deny	/bin/cp x.img //dev/sdb
+deny	busybox cp x.img /dev/sdb
+deny	cd /dev && cp ~/x.img sdb
+deny	DEV=/dev/mmcblk0; cp x.img $DEV
+deny	pv -o /dev/sdb x.img
+deny	pv -o/dev/sdb x.img
+deny	pv --output /dev/sdb x.img
+deny	pv --output=/dev/sdb x.img
+deny	sudo pv -o /dev/sdb x.img
+deny	pv x.img > /dev/sdb
+deny	pv x.img | sudo tee /dev/sdb
+deny	pv x.img | sudo dd of=/dev/sdb bs=4M
+
+# ---- cp·pv: 통과해야 함
+allow	cp /dev/sda backup.img
+allow	cp x.img y.img
+allow	cp -r src/ dst/
+allow	cp -t dist/ a.js b.js
+allow	cp x.txt /dev/null
+allow	cp /dev/null empty.txt
+allow	cp a.log b.log /tmp/
+allow	pv x.img > out.img
+allow	pv -o out.img x.img
+allow	pv /dev/sda > disk.img
+allow	pv -L 1m x.img | gzip > x.img.gz
+allow	echo cp x.img /dev/sdb
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated
