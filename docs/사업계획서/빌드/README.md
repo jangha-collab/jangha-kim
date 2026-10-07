@@ -10,7 +10,8 @@
 
 ```bash
 N=docs/사업계획서/2026-10_스마트경찰경광등_사업계획서
-pandoc "$N.md" -f gfm-strikeout -t docx --reference-doc=docs/사업계획서/빌드/ref3.docx -o "$N.docx"
+pandoc "$N.md" -f gfm-strikeout -t docx --reference-doc=docs/사업계획서/빌드/ref3.docx \
+  --resource-path=docs/사업계획서/빌드/images -o "$N.docx"
 python3 docs/사업계획서/빌드/postdocx.py "$N.docx"
 ```
 
@@ -29,4 +30,11 @@ python3 docs/사업계획서/빌드/post_ppt.py /tmp/out.pptx docs/사업계획�
 
 ## 이미지
 
-`images/`에는 PPT 5장에 쓰는 공개 특허 도면 4점이 있다. 출처는 엠클라비스 경광등 특허 조사(2026.4)이며 파일 이름은 특허 번호와 출원인이다. 제품 사진을 넣으려면 같은 폴더에 파일을 두고 `build_ppt.py`의 `cells`에 추가한다.
+`images/`에 PPT와 Word에 쓰는 이미지가 있다.
+
+- 해외 제품 사진 4점(VITRONIC, Ekin, Hikvision, GET): 각 제조사의 발표자료·리플릿·브로슈어·매뉴얼에서 가져왔다. Dahua iPatrol은 이미지 자료가 없다. 외부 제출 전 사용 허락을 확인한다.
+- 국내 규격서 사진 5점(쏘나타, 렉스턴, 싼타페, 통합디바이스, 경기북부 자율방범대 경광등): 나눔컴퍼니 규격서와 입찰요청서에서 가져왔다.
+- 특허 도면 4점: 엠클라비스 경광등 특허 조사(2026.4)에 수록된 공개 도면이다.
+- `fig_overseas_products.jpg`, `fig_domestic_specs.jpg`: 위 사진을 묶어 Word 문서에 넣는 합성 그림이다.
+
+사진을 바꾸거나 추가하려면 같은 폴더에 파일을 두고 `build_ppt.py`의 해당 슬라이드 코드(`pcells`, `cells`, `spec_imgs`)를 고친다.
