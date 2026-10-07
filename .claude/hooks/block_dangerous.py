@@ -42,7 +42,7 @@ REASONS = {
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
-    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, pv -o 는 허용되지 않습니다. "
+    "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, pv -o, rsync, ddrescue 는 허용되지 않습니다. "
     "/dev/null, /dev/stderr 같은 안전한 장치만 쓸 수 있습니다.",
     "find": "차단됨: 루트(/)나 홈(~) 전체를 대상으로 파일을 지우는 find 명령은 허용되지 않습니다. "
     "-name 이나 -path 로 대상을 좁히거나 시작 경로를 더 구체적으로 주세요.",
@@ -936,6 +936,102 @@ def check_pv(arg_words, state):
     return None
 
 
+def positional_args(arg_words, short_value, long_value):
+    """옵션과 그 값을 건너뛰고 위치 인자(파일 이름 등)만 돌려준다.
+
+    short_value: 값을 받는 짧은 옵션 글자. -e ssh, -essh, -avze ssh 모두 처리한다.
+    long_value: '=' 없이 다음 인자를 값으로 받는 긴 옵션 이름.
+    """
+    out, words, after = [], iter(arg_words), False
+    for w in words:
+        a = w.value
+        if after or not a.startswith("-") or a == "-":
+            out.append(w)
+        elif a == "--":
+            after = True
+        elif a.startswith("--"):
+            if "=" not in a and a in long_value:
+                next(words, None)
+        else:
+            for k, ch in enumerate(a[1:]):
+                if ch in short_value:
+                    if k == len(a) - 2:  # 묶음의 마지막 글자면 값은 다음 인자
+                        next(words, None)
+                    break
+    return out
+
+
+def has_short_flag(values, flag, short_value):
+    """짧은 옵션 묶음(-vG 등)에 flag 가 있는가. 값을 받는 글자 뒤는 값이므로 보지 않는다."""
+    for v in values:
+        if v == "--":
+            break
+        if v.startswith("-") and not v.startswith("--"):
+            for ch in v[1:]:
+                if ch == flag:
+                    return True
+                if ch in short_value:
+                    break
+    return False
+
+
+# rsync 3.2.7 man 페이지의 OPTION SUMMARY 기준
+RSYNC_SHORT_VALUE = set("eBfMT@")
+RSYNC_LONG_VALUE = {
+    "--address", "--backup-dir", "--block-size", "--bwlimit", "--checksum-choice", "--checksum-seed", "--chmod",
+    "--chown", "--compare-dest", "--compress-choice", "--compress-level", "--config", "--contimeout", "--copy-as",
+    "--copy-dest", "--debug", "--dparam", "--early-input", "--exclude-from", "--exclude", "--files-from", "--filter",
+    "--groupmap", "--iconv", "--include-from", "--include", "--info", "--link-dest", "--log-file-format",
+    "--log-file", "--max-alloc", "--max-delete", "--max-size", "--min-size", "--modify-window", "--only-write-batch",
+    "--out-format", "--outbuf", "--partial-dir", "--password-file", "--port", "--protocol", "--read-batch",
+    "--remote-option", "--rsh", "--rsync-path", "--skip-compress", "--sockopts", "--stop-after", "--stop-at",
+    "--stderr", "--suffix", "--temp-dir", "--timeout", "--usermap", "--write-batch",
+}
+RSYNC_REMOTE = re.compile(r"^(?:[^/@:\s]+@)?[^/:\s]+:(?!:)(.*)$")  # host:path, user@host:path
+
+
+def check_rsync(arg_words, state):
+    """rsync 의 목적지(마지막 위치 인자)가 장치면 막는다. host:/dev/sdb 같은 원격 장치도 막는다."""
+    positional = positional_args(arg_words, RSYNC_SHORT_VALUE, RSYNC_LONG_VALUE)
+    read_batch = any(w.value == "--read-batch" or w.value.startswith("--read-batch=") for w in arg_words)
+    if not positional or (len(positional) < 2 and not read_batch):
+        return None
+    dest = positional[-1]
+    remote = RSYNC_REMOTE.match(dest.value)
+    if remote:
+        path = remote.group(1)
+        if path.startswith("/"):
+            path = posixpath.normpath(re.sub(r"^/+", "/", path))
+            if path.startswith("/dev/") and not SAFE_DEVICE.match(path):
+                return REASONS["device_write"]
+        return None
+    if is_device(dest, state):
+        return REASONS["device_write"]
+    return None
+
+
+# GNU ddrescue 1.27 man 페이지 기준. 사용법: ddrescue [options] infile outfile [mapfile]
+DDRESCUE_SHORT_VALUE = set("abceEFHiKmorsTxXZ")
+DDRESCUE_LONG_VALUE = {
+    "--min-read-rate", "--sector-size", "--cluster-size", "--max-bad-areas", "--max-error-rate", "--fill-mode",
+    "--test-mode", "--input-position", "--skip-size", "--domain-mapfile", "--output-position", "--retry-passes",
+    "--size", "--timeout", "--extend-outfile", "--max-read-errors", "--max-read-rate", "--cpass", "--delay-slow",
+    "--log-events", "--log-rates", "--log-reads", "--mapfile-interval", "--max-slow-reads", "--pause-on-error",
+    "--pause-on-pass",
+}
+
+
+def check_ddrescue(arg_words, state):
+    """ddrescue 의 outfile(두 번째 위치 인자)이 장치면 막는다. 장치에서 읽어 이미지로 구하는 것은 괜찮다."""
+    values = [w.value for w in arg_words]
+    if "--generate-mode" in values or has_short_flag(values, "G", DDRESCUE_SHORT_VALUE):
+        return None  # -G 는 outfile 을 읽어 mapfile 만 만든다
+    positional = positional_args(arg_words, DDRESCUE_SHORT_VALUE, DDRESCUE_LONG_VALUE)
+    if len(positional) >= 2 and is_device(positional[1], state):
+        return REASONS["device_write"]
+    return None
+
+
 def echo_args(seg):
     """앞 구간이 echo/printf 면 그 인자를 돌려준다 (파이프로 넘어가는 내용)."""
     if seg is None:
@@ -1027,6 +1123,10 @@ def check_segment(seg, piped_from, state, depth):
         return check_cp(arg_words, state)
     if name == "pv":
         return check_pv(arg_words, state)
+    if name == "rsync":
+        return check_rsync(arg_words, state)
+    if name == "ddrescue":
+        return check_ddrescue(arg_words, state)
     if name == "tee":
         for w in arg_words:
             if not w.value.startswith("-") and is_device(w, state):
