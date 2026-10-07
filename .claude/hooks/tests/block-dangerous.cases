@@ -242,5 +242,45 @@ allow	pv /dev/sda > disk.img
 allow	pv -L 1m x.img | gzip > x.img.gz
 allow	echo cp x.img /dev/sdb
 
+# ---- rsync·ddrescue 로 장치에 쓰기: 막아야 함
+deny	rsync x.img /dev/sdb
+deny	rsync -av --write-devices x.img /dev/sdb
+deny	rsync --inplace --progress x.img /dev/sdb
+deny	sudo rsync -a x.img /dev/nvme0n1
+deny	rsync -e ssh x.img /dev/sdb
+deny	rsync -avze ssh x.img /dev/sdb
+deny	rsync --exclude '*.tmp' x.img /dev/sdb
+deny	rsync -- x.img /dev/sdb
+deny	rsync x.img root@backup:/dev/sdb
+deny	rsync -a x.img backup:/dev/sdc
+deny	rsync --read-batch=batch.bin /dev/sdb
+deny	cd /dev && rsync ~/x.img sdb
+deny	ddrescue x.img /dev/sdb
+deny	ddrescue -f x.img /dev/sdb map.log
+deny	sudo ddrescue -f -n /dev/sda /dev/sdb rescue.map
+deny	ddrescue -f -c 256 /dev/sda /dev/sdb map
+deny	ddrescue -fc256 /dev/sda /dev/sdb map
+deny	ddrescue --force --cluster-size 256 /dev/sda /dev/sdb map
+deny	ddrescue -f --size=1G /dev/sda /dev/sdb map
+deny	ddrescue -f -i 0 -o 0 /dev/sda /dev/sdb map
+deny	ddrescue -f --fill-mode=- /dev/zero /dev/sdb map
+
+# ---- rsync·ddrescue: 통과해야 함
+allow	rsync -av src/ dst/
+allow	rsync -av src/ backup:/srv/backup/
+allow	rsync -e ssh -av ./ user@host:~/project/
+allow	rsync -av --exclude node_modules ./ /tmp/copy/
+allow	rsync /dev/sda backup.img
+allow	rsync --copy-devices /dev/sda backup.img
+allow	rsync -av ./ /dev/shm/build/
+allow	rsync -av x.txt /dev/null
+allow	ddrescue /dev/sda disk.img disk.map
+allow	ddrescue -d -r3 /dev/sda disk.img disk.map
+allow	ddrescue -i 0 -s 1G /dev/sda part.img part.map
+allow	ddrescue --input-position 0 --size 1G /dev/sda part.img part.map
+allow	ddrescue -c 256 /dev/sda disk.img map
+allow	ddrescue -G /dev/sda /dev/sdb map
+allow	echo rsync x.img /dev/sdb
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated

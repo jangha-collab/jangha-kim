@@ -128,17 +128,17 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 `block-dangerous.sh`는 다음을 막습니다.
 
-| 차단 대상                 | 예시                                                                                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                       |
-| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`                                                            |
-| main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                         |
-| main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                         |
-| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`                                                                       |
-| main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                       |
-| 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                 |
-| 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img` |
-| 해석할 수 없는 명령       | 따옴표·괄호 짝이 맞지 않는 명령, JSON이 아닌 훅 입력, 검사 중 오류                                                                                               |
+| 차단 대상                 | 예시                                                                                                                                                                                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                                                                                                                 |
+| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`                                                                                                                                                      |
+| main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                                                                                                                   |
+| main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                                                                                                                   |
+| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`                                                                                                                                                                 |
+| main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                                                                                                                 |
+| 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                                                                                                           |
+| 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img`, `rsync x.img /dev/sdb`, `rsync x.img host:/dev/sdb`, `ddrescue -f /dev/sda /dev/sdb map` |
+| 해석할 수 없는 명령       | 따옴표·괄호 짝이 맞지 않는 명령, JSON이 아닌 훅 입력, 검사 중 오류                                                                                                                                                                                         |
 
 다음과 같은 변형도 같은 명령으로 알아봅니다.
 
@@ -170,8 +170,9 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 > 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 실행해 봐야 값을 아는 명령
 > (`$(echo rm) -rf /`, `${IFS}`로 단어 나누기, 실행 중에 만든 스크립트)까지 막지는 못합니다.
-> `rsync`·`install`·`ddrescue`로 장치에 쓰기, `find -exec sh -c 'rm ...'`, `git checkout -- .`·`git restore .`·`git stash drop`처럼
-> 지금 범위 밖의 위험 명령도 통과합니다. 장치를 **읽는** 명령(`cp /dev/sda backup.img`, `pv /dev/sda > disk.img`)은 막지 않습니다.
+> `install`·`mv`로 장치에 쓰기, `find -exec sh -c 'rm ...'`, `git checkout -- .`·`git restore .`·`git stash drop`처럼
+> 지금 범위 밖의 위험 명령도 통과합니다. 장치를 **읽는** 명령(`cp /dev/sda backup.img`, `pv /dev/sda > disk.img`,
+> `ddrescue /dev/sda disk.img disk.map`, `rsync --copy-devices /dev/sda backup.img`)은 막지 않습니다.
 
 훅을 고친 뒤에는 시험을 돌리세요. 위험한 시험 문자열은 시험 파일 안에만 있으므로, 터미널에 직접 치면 그 명령 자체가 막힙니다.
 
