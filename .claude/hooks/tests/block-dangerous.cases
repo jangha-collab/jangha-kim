@@ -282,5 +282,37 @@ allow	ddrescue -c 256 /dev/sda disk.img map
 allow	ddrescue -G /dev/sda /dev/sdb map
 allow	echo rsync x.img /dev/sdb
 
+# ---- install·mv 로 장치에 쓰기: 막아야 함
+deny	install x.img /dev/sdb
+deny	sudo install -m 644 x.img /dev/sdb
+deny	install -o root -g disk x.img /dev/sdb
+deny	install -m644 x.img /dev/sdb
+deny	install --mode 644 x.img /dev/sdb
+deny	install --strip-program strip x.bin /dev/sdb
+deny	install -t /dev/sdb x.img
+deny	install --target-directory=/dev/sdb x.img
+deny	mv x.img /dev/sdb
+deny	sudo mv -f x.img /dev/nvme0n1
+deny	mv -S .old x.img /dev/sdb
+deny	mv -t /dev/sdb x.img
+deny	mv -vt /dev/sdb x.img
+deny	mv --target-dir=/dev/sdb x.img
+deny	cd /dev && mv ~/x.img sdb
+deny	cp --sparse always x.img /dev/sdb
+deny	cp --no-preserve mode x.img /dev/sdb
+
+# ---- install·mv: 통과해야 함
+allow	install -m 755 build/app /usr/local/bin/app
+allow	install -D -m 644 conf.ini ~/.config/app/conf.ini
+allow	install -d /var/lib/app
+allow	install -d -m 755 /dev/shm/app
+allow	install -t dist/ a.js b.js
+allow	mv old.txt new.txt
+allow	mv -t archive/ *.log
+allow	mv /dev/shm/tmp.img ./tmp.img
+allow	mv x.log /dev/null
+allow	cp --sparse always /dev/sda disk.img
+allow	echo mv x.img /dev/sdb
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated
