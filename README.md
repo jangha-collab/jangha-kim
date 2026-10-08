@@ -17,7 +17,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 ```
 .claude/
-├── settings.json          # 훅 등록 (팀 공유, git 커밋)
+├── settings.json          # 훅 등록 + ruflo 플러그인 마켓플레이스 등록 (팀 공유, git 커밋)
 ├── hooks/
 │   ├── block-dangerous.sh # 차단 훅 진입점. 파이썬 검사기를 실행
 │   ├── block_dangerous.py # 위험 명령 판단 본체 (루트/홈 삭제, main 강제 푸시 등)
@@ -131,10 +131,10 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 | 차단 대상                 | 예시                                                                                                                                                                                                                                                                                                             |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                                                                                                                                                                       |
-| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`                                                                                                                                                                                                            |
+| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`, `find ~ -exec sh -c 'rm "$1"' _ {} \;`, `find / \| xargs sh -c 'rm "$@"' _`                                                                                                                               |
 | main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                                                                                                                                                                         |
 | main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                                                                                                                                                                         |
-| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`                                                                                                                                                                                                                       |
+| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`, `git checkout -- .`·`git checkout .`·`git checkout HEAD :/`처럼 작업 폴더 전체를 되돌리는 checkout, `git checkout -f main`                                                                                           |
 | main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                                                                                                                                                                       |
 | 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                                                                                                                                                                 |
 | 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img`, `rsync x.img /dev/sdb`, `rsync x.img host:/dev/sdb`, `ddrescue -f /dev/sda /dev/sdb map`, `install -m 644 x.img /dev/sdb`, `mv x.img /dev/sdb` |
@@ -156,6 +156,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 - 일상적인 명령: `rm -rf ./build`, `rm -rf ~/projects/old`, `git push --force origin feature/x`,
   `git push --follow-tags origin main`, `git clean -n`, `git reset --soft HEAD~1`, `dd ... of=/dev/null`
+- 파일을 지정한 되돌리기: `git checkout -- src/app.ts`, `git checkout main -- package.json`, 하나씩 묻는 `git checkout -p -- .`
 - **따옴표 안의 글자와 주석**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
   `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `# don't` 같은 주석, `man mkfs`
 - 마른 실행과 안전한 대상: `git push -n -f origin main`, `mkfs.ext4 -F rootfs.img`, `dd ... of=/dev/shm/x`
@@ -170,7 +171,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 > 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 실행해 봐야 값을 아는 명령
 > (`$(echo rm) -rf /`, `${IFS}`로 단어 나누기, 실행 중에 만든 스크립트)까지 막지는 못합니다.
-> `find -exec sh -c 'rm ...'`, `git checkout -- .`·`git restore .`·`git stash drop`처럼
+> `git restore .`·`git stash drop`·`git branch -D`처럼
 > 지금 범위 밖의 위험 명령도 통과합니다. 장치를 **읽는** 명령(`cp /dev/sda backup.img`, `pv /dev/sda > disk.img`,
 > `ddrescue /dev/sda disk.img disk.map`, `rsync --copy-devices /dev/sda backup.img`)은 막지 않습니다.
 
@@ -384,3 +385,66 @@ model: haiku # haiku / sonnet / opus / inherit(메인과 같음)
 3. 본문 끝에 보고 형식을 정합니다.
 4. `/agents`에서 목록에 보이는지 확인하고, 작은 작업으로 한 번 위임해 봅니다.
 5. 나만 쓸 에이전트는 `~/.claude/agents/`에 두면 모든 프로젝트에서 쓸 수 있습니다.
+
+# 플러그인: ruflo 마켓플레이스와 `ruflo-core`
+
+플러그인은 스킬·에이전트·훅·MCP 서버를 한 묶음으로 설치하는 단위입니다.
+이 저장소는 [ruvnet/ruflo](https://github.com/ruvnet/ruflo)(옛 이름 Claude Flow) 마켓플레이스를 등록하고,
+그 기본 플러그인 `ruflo-core`를 프로젝트 범위로 켜 둡니다. 아래 두 명령을 `--scope project`로 실행한 결과가
+`.claude/settings.json`에 기록되어 있습니다.
+
+```bash
+claude plugin marketplace add ruvnet/ruflo --scope project
+claude plugin install ruflo-core@ruflo --scope project
+```
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "ruflo": { "source": { "source": "github", "repo": "ruvnet/ruflo" } }
+  },
+  "enabledPlugins": { "ruflo-core@ruflo": true }
+}
+```
+
+- `extraKnownMarketplaces`는 마켓플레이스 이름(`ruflo`, 저장소의 `marketplace.json`에 적힌 `name`)과 받아올 곳을 등록합니다.
+  이 폴더를 신뢰(trust)한 뒤에만 적용됩니다.
+- `enabledPlugins`는 `플러그인@마켓플레이스` 형식으로 켤 플러그인을 적습니다.
+
+## `ruflo-core`가 더해 주는 것
+
+| 구성 요소 | 내용                                                                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| MCP 서버  | `ruflo`. 메모리·AgentDB·임베딩·스웜·브라우저 등 300여 개 도구. 도구 이름은 `mcp__plugin_ruflo-core_ruflo__*`                              |
+| 에이전트  | `coder`, `researcher`, `reviewer`, `witness-curator`                                                                                      |
+| 스킬      | `/ruflo-core:init-project`, `/ruflo-core:ruflo-doctor`, `/ruflo-core:ruflo-status`, `/ruflo-core:discover-plugins`, `/ruflo-core:witness` |
+| 훅        | `PreToolUse`(Bash, Write/Edit), `PostToolUse`, `PreCompact`, `Stop`. 항상 종료 코드 0으로 끝나므로 작업을 막지 않습니다                   |
+
+이 저장소의 훅과 플러그인 훅은 **같은 이벤트에서 둘 다 실행**됩니다. 차단은 여전히 `block-dangerous.sh`가 맡고,
+플러그인 훅은 ruflo 쪽 학습·기록용입니다. 플러그인 훅은 차단 결과를 내지 않습니다.
+
+## 처음 쓰는 사람이 할 일
+
+`settings.json`의 항목은 플러그인을 "켠다"는 선언이지 내려받기가 아닙니다. 저장소를 받은 뒤 한 번 설치해야 합니다.
+
+```bash
+claude plugin install ruflo-core@ruflo --scope project   # 설치되지 않았다는 안내가 보일 때
+claude plugin list                                        # ruflo-core@ruflo 가 enabled 로 보이면 정상
+```
+
+알아 둘 점:
+
+- **첫 MCP 서버 시작은 느립니다.** 플러그인 실행기가 `npx`로 `ruflo` 패키지를 내려받습니다(수십 초에서 수 분).
+  한 번 받은 뒤에는 바로 뜹니다. 전역 설치(`npm install -g ruflo`)가 있으면 그것을 먼저 씁니다.
+- **자동 업데이트는 꺼져 있습니다.** 공식 마켓플레이스가 아니므로 기본값이 꺼짐입니다.
+  갱신하려면 `claude plugin marketplace update ruflo` 뒤에 `claude plugin update ruflo-core@ruflo`를 실행하거나
+  `/plugin`의 **Marketplaces** 탭에서 켭니다.
+- **클라우드 세션(claude.ai/code)에서는 프로젝트 플러그인이 로드되지 않습니다.** 터미널·데스크톱·VS Code 세션에서 씁니다.
+- **다른 ruflo 플러그인**(`ruflo-swarm`, `ruflo-rag-memory`, `ruflo-testgen` 등 30여 개)은 마켓플레이스가 이미 등록되어 있으므로
+  `/plugin install <이름>@ruflo`로 바로 설치할 수 있습니다. 팀 전체에 켜려면 `--scope project`로 설치하고
+  바뀐 `settings.json`을 커밋합니다. 나만 쓰려면 `--scope local`(`.claude/settings.local.json`, gitignore 됨)로 설치합니다.
+- **끄기:** 나만 끄려면 `claude plugin disable ruflo-core@ruflo --scope local`, 팀 전체에서 빼려면
+  `claude plugin uninstall ruflo-core@ruflo --scope project` 뒤에 `settings.json`을 커밋합니다.
+  마켓플레이스까지 지우려면 `claude plugin marketplace remove ruflo --scope project`.
+- `npx ruflo init`는 쓰지 않습니다. 그 명령은 `.claude/` 아래에 에이전트·명령어 수십 개를 쏟아 넣고 `CLAUDE.md`를 덮어쓰며
+  `~/.claude/CLAUDE.md`에도 글을 덧붙입니다. 이 저장소는 플러그인 방식으로만 ruflo를 씁니다.
