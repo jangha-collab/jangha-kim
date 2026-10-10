@@ -40,6 +40,8 @@ REASONS = {
     "push_delete": "차단됨: 원격 main/master 브랜치를 지우는 푸시는 허용되지 않습니다.",
     "clean": "차단됨: git clean -f 는 추적되지 않은 파일을 되돌릴 수 없게 지웁니다. 먼저 git clean -n 으로 확인하세요.",
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
+    "checkout": "차단됨: git checkout 으로 작업 폴더 전체의 커밋하지 않은 변경을 버리는 명령은 허용되지 않습니다. "
+    "되돌릴 파일을 하나씩 지정하거나 git stash 로 먼저 보관하세요.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
     "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, mv, install, pv -o, rsync, ddrescue 는 허용되지 않습니다. "
@@ -791,12 +793,85 @@ def check_git(args, state, depth):
         return REASONS["reset"]
     if sub == "clean":
         return check_clean(rest)
+    if sub == "checkout":
+        return check_checkout(rest, cwd)
     if sub == "submodule" and "foreach" in rest:
         script = rest[rest.index("foreach") + 1 :]
         while script and script[0].startswith("-"):
             script = script[1:]
         if script:
             return analyze(" ".join(script), cwd, depth + 1)
+    return None
+
+
+WHOLE_TREE_PATHSPECS = {":/", ":/*", ":(top)", ":(top)*", ":(top).", "*"}
+
+
+def git_toplevel(cwd):
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd or ".", "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=3
+        )
+        return out.stdout.strip() if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def is_whole_tree(path, cwd):
+    """pathspec 이 작업 폴더 전체(또는 현재 폴더와 그 위)를 가리키는가."""
+    if path in WHOLE_TREE_PATHSPECS:
+        return True
+    p = path[:-2] if path.endswith("/*") else path
+    p = posixpath.normpath(p) if p else p
+    if p == "." or re.fullmatch(r"\.\.(/\.\.)*", p or ""):
+        return True  # 현재 폴더나 그 위 폴더 전체
+    if p.startswith("/"):
+        top = git_toplevel(cwd)
+        if top and (p == top or top.startswith(p.rstrip("/") + "/")):
+            return True
+    return False
+
+
+def check_checkout(args, cwd):
+    """git checkout 이 작업 폴더 전체의 커밋하지 않은 변경을 버리는지 본다.
+
+    - 경로가 작업 폴더 전체: git checkout -- . / git checkout . / git checkout HEAD :/
+    - 강제 전환: git checkout -f main (커밋하지 않은 변경을 모두 버린다)
+    파일을 지정한 되돌리기(git checkout -- src/app.ts)와 -p(하나씩 묻기)는 통과한다.
+    """
+    force = patch = False
+    words, after = iter(args), False
+    positional, pathspecs = [], []
+    for a in words:
+        if after:
+            pathspecs.append(a)
+        elif a == "--":
+            after = True
+        elif a.startswith("--"):
+            name = a.split("=", 1)[0]
+            if long_is(name, "--force", 4):
+                force = True
+            elif long_is(name, "--patch", 4):
+                patch = True
+            elif name in ("--orphan", "--conflict", "--pathspec-from-file") and "=" not in a:
+                next(words, None)
+        elif a.startswith("-") and len(a) > 1:
+            for k, ch in enumerate(a[1:]):
+                if ch in "bB":  # -b 새브랜치: 나머지나 다음 인자가 이름
+                    if k == len(a) - 2:
+                        next(words, None)
+                    break
+                force = force or ch == "f"
+                patch = patch or ch == "p"
+        else:
+            positional.append(a)
+    if patch:
+        return None
+    # '--' 없이 쓴 인자 중 . 이나 :/ 처럼 브랜치 이름이 될 수 없는 것은 경로다
+    if any(is_whole_tree(p, cwd) for p in pathspecs + positional):
+        return REASONS["checkout"]
+    if force and not pathspecs:
+        return REASONS["checkout"]
     return None
 
 
@@ -864,12 +939,13 @@ def parse_find(words, state):
         if t == "-delete":
             deletes = True
         elif t in ("-exec", "-execdir", "-ok", "-okdir"):
-            command = expr[k + 1] if k + 1 < len(expr) else ""
-            if t in ("-exec", "-execdir") and posixpath.basename(command) in ("rm", "unlink", "shred"):
+            end = k + 1
+            while end < len(expr) and expr[end] not in (";", "+"):
+                end += 1
+            # -ok 는 파일마다 묻기 때문에 지우는 동작으로 보지 않는다
+            if t in ("-exec", "-execdir") and command_deletes(words[i + k + 1 : i + end]):
                 deletes = True
-            while k + 1 < len(expr) and expr[k + 1] not in (";", "+"):
-                k += 1
-            k += 1  # 종결자 ; 또는 +
+            k = end  # 종결자 ; 또는 +
         elif t in FIND_FILTERS:
             if not (k > 0 and expr[k - 1] in ("!", "-not")):
                 filtered = True
@@ -877,6 +953,45 @@ def parse_find(words, state):
                 k += 1  # 패턴 값
         k += 1
     return from_danger, deletes, filtered
+
+
+DELETERS = {"rm", "unlink", "shred"}
+
+
+def command_deletes(words, depth=0):
+    """명령이 받은 파일을 지우는가. rm 은 물론 sh -c 'rm ...' 처럼 셸 스크립트 안에서 지우는 것도 본다."""
+    if depth > 3:
+        return True  # 너무 깊게 감싼 명령은 지운다고 본다
+    words, nested, _ = strip_prefixes(words)
+    if any(script_deletes(text, depth + 1) for text in nested):  # su -c, env -S
+        return True
+    if not words:
+        return False
+    name = posixpath.basename(words[0].value)
+    if name in DELETERS:
+        return True
+    if name in SHELLS:
+        args = [w.value for w in words[1:]]
+        for k, a in enumerate(args):
+            if a.startswith("-") and not a.startswith("--") and "c" in a[1:] and "o" not in a[1:]:
+                script = args[k + 1 :]
+                if script and script[0] == "--":
+                    script = script[1:]
+                return bool(script) and script_deletes(script[0], depth + 1)
+    if name == "eval":
+        return script_deletes(" ".join(w.value for w in words[1:]), depth + 1)
+    return False
+
+
+def script_deletes(script, depth=0):
+    """셸 스크립트 문자열 안에 지우는 명령이 있는가. 해석할 수 없으면 지운다고 본다."""
+    try:
+        lexer = Lexer(script).run()
+    except ValueError:
+        return True
+    if any(seg.words and command_deletes(seg.words, depth) for seg in lexer.segments):
+        return True
+    return any(script_deletes(sub, depth + 1) for sub in lexer.subs)
 
 
 def check_find(arg_words, state):
@@ -1099,8 +1214,8 @@ def check_segment(seg, piped_from, state, depth):
     arg_words = words[1:]
     args = [w.value for w in arg_words]
 
-    if from_stdin and piped_from is not None and name in ("rm", "unlink", "shred"):
-        # find / ... | xargs rm : find 가 루트·홈 전체를 넘기면 막는다
+    if from_stdin and piped_from is not None and command_deletes(words):
+        # find / ... | xargs rm, xargs sh -c 'rm ...' : find 가 루트·홈 전체를 넘기면 막는다
         source, _, _ = strip_prefixes(piped_from.words)
         if source and posixpath.basename(source[0].value) == "find":
             from_danger, _, filtered = parse_find(source[1:], state)

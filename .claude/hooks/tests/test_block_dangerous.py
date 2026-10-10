@@ -74,6 +74,27 @@ def branch_cases():
     return results
 
 
+def checkout_path_cases():
+    """git checkout 에 저장소 최상위를 절대 경로로 준 경우. 경로가 기계마다 달라 임시 저장소로 시험한다."""
+    results = []
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = os.path.join(tmp, "repo")
+        os.makedirs(os.path.join(repo, "src"))
+        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+        sub = os.path.join(repo, "src")
+        for expect, cmd, cwd in (
+            ("deny", f"git checkout -- {repo}", repo),
+            ("deny", f"git checkout -- {repo}/", sub),
+            ("deny", f"git checkout -- {tmp}", repo),
+            ("deny", "git checkout -- ..", sub),
+            ("allow", f"git checkout -- {repo}/README.md", repo),
+            ("allow", f"git checkout -- {sub}", repo),
+        ):
+            label = f"[절대 경로] {cmd.replace(tmp, '<tmp>')} (cwd={cwd.replace(tmp, '<tmp>')})"
+            results.append(check(expect, cmd, label, cwd=cwd))
+    return results
+
+
 def audit_cases():
     """hook-auditor 가 만든 우회·오탐 사례. {MAIN}/{FEAT} 는 임시 저장소 경로로 바뀐다."""
     with open(AUDIT, encoding="utf-8") as f:
@@ -118,6 +139,7 @@ def main():
     results = [check(e, c, label) for e, c, label in load_cases()]
     results += [check(e, c, f"[여러 줄] {label}") for e, c, label in MULTILINE]
     results += branch_cases()
+    results += checkout_path_cases()
     audit, skipped = audit_cases()
     results += audit
     results += input_cases()
