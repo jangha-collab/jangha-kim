@@ -25,6 +25,10 @@ echo '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}' | .claude/hooks/bl
 
 # settings.json 구조 검증
 jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .claude/settings.json
+jq -e '.extraKnownMarketplaces.ruflo.source.repo == "ruvnet/ruflo" and .enabledPlugins["ruflo-core@ruflo"] == true' .claude/settings.json
+
+# ruflo 플러그인이 설치·활성 상태인지 확인 (ruflo-core@ruflo 가 enabled 로 보여야 한다)
+claude plugin list
 
 # 스킬 본문의 !`명령`은 종료 코드 0이어야 한다. 하나씩 터미널에서 실행해 확인
 git log --oneline origin/main..HEAD 2>/dev/null || echo "(origin/main을 찾을 수 없음)"
@@ -35,6 +39,8 @@ git log --oneline origin/main..HEAD 2>/dev/null || echo "(origin/main을 찾을 
 ## 구조와 동작 원리
 
 `.claude/settings.json`이 세 훅을 등록한다. 세 스크립트가 서로 다른 패턴을 대표하므로 새 훅은 가장 가까운 것을 본뜬다.
+
+같은 파일의 `extraKnownMarketplaces`·`enabledPlugins`는 [ruvnet/ruflo](https://github.com/ruvnet/ruflo) 마켓플레이스와 그 기본 플러그인 `ruflo-core`를 프로젝트 범위로 켠다. 이 항목은 `claude plugin marketplace add ruvnet/ruflo --scope project`, `claude plugin install ruflo-core@ruflo --scope project`가 쓴 결과이므로 손으로 고치지 말고 같은 CLI(`claude plugin ...`에 `--scope project`)로 바꾼다. `npx ruflo init`는 `.claude/`와 `CLAUDE.md`를 덮어쓰므로 쓰지 않는다. 플러그인 훅은 이 저장소 훅과 같은 이벤트에서 함께 실행되지만 차단은 하지 않는다.
 
 | 스크립트                           | 이벤트 / 매처                                        | 역할                                                                                                                 |
 | ---------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
