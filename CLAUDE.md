@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 이 저장소가 무엇인가
 
-Claude Code 자동화 설정(훅·슬래시 명령어·서브에이전트)을 바로 쓸 수 있는 형태로 모아 둔 한국어 저장소다. 애플리케이션 코드나 빌드 시스템은 없고, `.claude/` 아래의 셸 스크립트·마크다운·JSON이 전부다. `README.md`가 설계 의도와 사용법을 설명하는 정본이며, 설정을 바꾸면 README도 같이 맞춰야 한다 (`@docs-ko` 에이전트가 그 일을 맡는다). `docs/`에는 코드와 무관한 업무 문서(사업계획서 등)를 둔다.
+Claude Code 자동화 설정(훅·슬래시 명령어·서브에이전트)을 바로 쓸 수 있는 형태로 모아 둔 한국어 저장소다. 애플리케이션 코드나 빌드 시스템은 없고, `.claude/` 아래의 셸 스크립트·마크다운·JSON이 전부다. `README.md`가 설계 의도와 사용법을 설명하는 정본이며, 설정을 바꾸면 README도 같이 맞춰야 한다 (`@docs-ko` 에이전트가 그 일을 맡는다). `docs/`에는 훅과 무관한 업무 문서(사업계획서 등)를 둔다. `docs/사업계획서/`는 마크다운이 원본이고 `.docx`·`.pptx`는 `빌드/`의 스크립트로 만든 산출물이다(아래 "업무 문서 재생성").
 
 ## 검증 명령
 
@@ -63,6 +63,22 @@ git log --oneline origin/main..HEAD 2>/dev/null || echo "(origin/main을 찾을 
 - `hook-auditor`(훅 점검, 보고만), `log-analyst`(로그 집계, haiku), `docs-ko`(마크다운만 수정). 각 파일 본문 끝에 보고 형식이 정해져 있으므로 바꿀 때 형식을 유지한다.
 - `tools`는 도구 이름 단위로만 제한된다(`Bash(git *)` 같은 범위 지정 불가). 더 세밀한 제한은 훅으로 한다.
 - 에이전트는 메인 대화를 보지 못하므로 위임 지시문에 필요한 정보를 모두 담는다.
+
+## 업무 문서 재생성 (`docs/사업계획서/`)
+
+사업계획서·과제제안서·시장조사 계획·사업타당성 조사 계획은 `.md`가 원본이다. `.docx`는 pandoc으로, `.pptx`는 `빌드/build_ppt.py`로 만들어 함께 커밋한다. 내용을 고치면 반드시 다시 만든다. 상세 명령은 `docs/사업계획서/빌드/README.md`에 있다.
+
+```bash
+export LANG=C.UTF-8   # 없으면 한글 경로의 --reference-doc을 찾지 못한다
+N=docs/사업계획서/<문서 이름>
+pandoc "$N.md" -f gfm-strikeout -t docx --reference-doc=docs/사업계획서/빌드/ref3.docx \
+  --resource-path=docs/사업계획서/빌드/images -o "$N.docx"
+python3 docs/사업계획서/빌드/postdocx.py "$N.docx"   # 표 테두리·머리글 음영
+```
+
+- `-f gfm-strikeout`을 빼면 표 안의 `~`가 취소선으로 해석된다.
+- PPT는 저장소에 없는 MClavis 원본 템플릿이 필요하다(`build_ppt.py <템플릿> <출력>` 후 `post_ppt.py`). 슬라이드 문구와 수치는 `build_ppt.py`에 직접 들어 있어 마크다운과 **따로 고쳐야** 한다. 한 사실이 사업계획서·과제제안서·`build_ppt.py`에 중복되므로 정정할 때 세 곳을 모두 확인한다.
+- 외부 자료(검색 요약, 언론 보도)는 문서마다 "확인/추정/미확인" 수준을 표시한다. 새 수치를 넣을 때도 같은 표기를 따른다.
 
 ## 문서 언어
 

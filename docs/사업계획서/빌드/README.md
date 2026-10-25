@@ -9,6 +9,7 @@
 표의 물결표(~)가 취소선으로 해석되지 않도록 `gfm-strikeout`을 쓴다.
 
 ```bash
+export LANG=C.UTF-8   # 없으면 한글 경로의 --reference-doc을 찾지 못한다
 N=docs/사업계획서/2026-10_스마트경찰경광등_사업계획서
 pandoc "$N.md" -f gfm-strikeout -t docx --reference-doc=docs/사업계획서/빌드/ref3.docx \
   --resource-path=docs/사업계획서/빌드/images -o "$N.docx"
