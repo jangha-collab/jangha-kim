@@ -375,5 +375,57 @@ allow	git checkout --orphan gh-pages
 allow	git checkout -f -- README.md
 allow	git commit -m "git checkout -- . 차단 추가"
 
+# ---- git restore 로 작업 폴더 전체 되돌리기: 막아야 함
+deny	git restore .
+deny	git restore -- .
+deny	git restore ./
+deny	git restore :/
+deny	git restore '*'
+deny	git restore ..
+deny	git restore -W .
+deny	git restore --worktree .
+deny	git restore -SW .
+deny	git restore --staged --worktree .
+deny	git restore -s HEAD .
+deny	git restore -sHEAD~1 .
+deny	git restore --source=main .
+deny	git restore --source main -- .
+deny	git restore -q .
+deny	git restore --ours .
+deny	git restore --pathspec-from-file=paths.txt
+deny	git -C . restore .
+deny	git stash && git restore .
+
+# ---- git restore: 통과해야 함
+allow	git restore src/app.ts
+allow	git restore -- README.md package.json
+allow	git restore --source=HEAD~1 src/app.ts
+allow	git restore -s main -- src/
+allow	git restore --staged .
+allow	git restore -S .
+allow	git restore --staged -- :/
+allow	git restore -p .
+allow	git restore --patch -- .
+allow	git restore --staged --pathspec-from-file=paths.txt
+allow	git commit -m "git restore . 차단 추가"
+
+# ---- git stash drop·clear: 막아야 함
+deny	git stash drop
+deny	git stash drop stash@{0}
+deny	git stash drop -q stash@{2}
+deny	git stash clear
+deny	git -C . stash clear
+deny	git stash list && git stash drop
+
+# ---- git stash: 통과해야 함
+allow	git stash
+allow	git stash push -m "wip"
+allow	git stash list
+allow	git stash show -p stash@{0}
+allow	git stash pop
+allow	git stash apply stash@{1}
+allow	git stash branch wip-branch
+allow	echo git stash clear
+
 # ---- 해석할 수 없는 명령: 막아야 함 (따옴표 짝이 안 맞음)
 deny	echo "unterminated
