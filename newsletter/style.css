@@ -3,7 +3,7 @@
 body { font-family: var(--font); font-size: 10.5pt; line-height: 1.65; color: #1f2933; margin: 0; }
 h1 { font-size: 20pt; margin: 0 0 4pt; color: #12355b; }
 h2 { font-size: 14pt; margin: 0 0 6pt; color: #12355b; border-left: 4pt solid #2f80ed; padding-left: 8pt; }
-h3 { font-size: 11.5pt; margin: 12pt 0 4pt; color: #1b4f8a; }
+h3 { font-size: 11.5pt; margin: 12pt 0 4pt; color: #1b4f8a; break-after: avoid; page-break-after: avoid; }
 a { color: #2f80ed; text-decoration: none; word-break: break-all; }
 .date { color: #52606d; font-size: 9.5pt; margin-bottom: 6pt; }
 .slogan { font-size: 12pt; font-weight: 700; margin: 8pt 0; }
