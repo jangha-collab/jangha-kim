@@ -1,0 +1,15 @@
+{
+  "title": "식품 및 라이프 스타일 관련 뉴스 & 트렌드 브리핑",
+  "slogan": "정보가 신뢰를 만들고, 신뢰가 거래를 만든다",
+  "publisher": "피플앤웍스",
+  "subscribers": null,
+  "quotes": [
+    "마케팅이란, 내가 돕고자 하는 특정 사람들에게 더 나은 변화를 만들어 주는 일 - 세스 고딘",
+    "고객이 원하는 것을 아는 것보다 고객이 걱정하는 것을 아는 것이 먼저다 - 발행인"
+  ],
+  "article_count": 6,
+  "target_pages": null,
+  "pages_tolerance": 1,
+  "max_mb": 10,
+  "font_stack": "'Pretendard','Noto Sans KR','Noto Sans CJK KR','Malgun Gothic','Apple SD Gothic Neo','WenQuanYi Zen Hei',sans-serif"
+}

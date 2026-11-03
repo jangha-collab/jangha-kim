@@ -2,3 +2,6 @@
 .claude/logs/
 # 개인 설정 오버라이드
 .claude/settings.local.json
+
+# 뉴스레터 산출물(HTML·PDF·issue JSON)
+newsletter/out/

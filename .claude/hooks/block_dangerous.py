@@ -42,6 +42,10 @@ REASONS = {
     "reset": "차단됨: git reset --hard 는 커밋하지 않은 변경을 잃게 하므로 허용되지 않습니다.",
     "checkout": "차단됨: git checkout 으로 작업 폴더 전체의 커밋하지 않은 변경을 버리는 명령은 허용되지 않습니다. "
     "되돌릴 파일을 하나씩 지정하거나 git stash 로 먼저 보관하세요.",
+    "restore": "차단됨: git restore 로 작업 폴더 전체의 커밋하지 않은 변경을 버리는 명령은 허용되지 않습니다. "
+    "되돌릴 파일을 하나씩 지정하거나 git stash 로 먼저 보관하세요. 스테이징만 취소하려면 git restore --staged 를 쓰세요.",
+    "stash_drop": "차단됨: 보관해 둔 변경을 지우는 git stash drop·clear 는 허용되지 않습니다. "
+    "정말 지워야 하면 git stash show -p 로 내용을 확인한 뒤 사용자가 직접 실행하세요.",
     "mkfs": "차단됨: 장치(/dev/...)에 파일시스템을 새로 만드는 명령은 허용되지 않습니다.",
     "dd": "차단됨: 장치(/dev/...)에 직접 쓰는 dd 명령은 허용되지 않습니다.",
     "device_write": "차단됨: 장치(/dev/...)에 직접 쓰는 리디렉션, tee, cp, mv, install, pv -o, rsync, ddrescue 는 허용되지 않습니다. "
@@ -795,6 +799,10 @@ def check_git(args, state, depth):
         return check_clean(rest)
     if sub == "checkout":
         return check_checkout(rest, cwd)
+    if sub == "restore":
+        return check_restore(rest, cwd)
+    if sub == "stash" and rest and rest[0] in ("drop", "clear"):
+        return REASONS["stash_drop"]
     if sub == "submodule" and "foreach" in rest:
         script = rest[rest.index("foreach") + 1 :]
         while script and script[0].startswith("-"):
@@ -872,6 +880,57 @@ def check_checkout(args, cwd):
         return REASONS["checkout"]
     if force and not pathspecs:
         return REASONS["checkout"]
+    return None
+
+
+def check_restore(args, cwd):
+    """git restore 가 작업 폴더 전체의 커밋하지 않은 변경을 버리는지 본다 (git 2.43 의 restore -h 기준).
+
+    작업 폴더를 되돌리는 경우(기본값, 또는 -W/--worktree)에만 해당한다. --staged 만 주면 스테이징만
+    취소하므로 통과한다. 파일을 지정한 되돌리기와 -p/--patch 도 통과한다.
+    """
+    staged = worktree = patch = from_file = False
+    words, after = iter(args), False
+    paths = []
+    for a in words:
+        if after:
+            paths.append(a)
+        elif a == "--":
+            after = True
+        elif a.startswith("--"):
+            name = a.split("=", 1)[0]
+            if name == "--no-staged":
+                staged = False
+            elif name == "--no-worktree":
+                worktree = False
+            elif long_is(name, "--pathspec-from-file", 6):
+                from_file = True
+                if "=" not in a:
+                    next(words, None)
+            elif long_is(name, "--staged", 4):
+                staged = True
+            elif long_is(name, "--worktree", 3):
+                worktree = True
+            elif long_is(name, "--patch", 4):
+                patch = True
+            elif name in ("--source", "--conflict") and "=" not in a:
+                next(words, None)
+        elif a.startswith("-") and len(a) > 1:
+            for k, ch in enumerate(a[1:]):
+                if ch == "s":  # -s 원본: 나머지나 다음 인자가 값
+                    if k == len(a) - 2:
+                        next(words, None)
+                    break
+                staged = staged or ch == "S"
+                worktree = worktree or ch == "W"
+                patch = patch or ch == "p"
+        else:
+            paths.append(a)
+    touches_worktree = worktree or not staged
+    if patch or not touches_worktree:
+        return None
+    if from_file or any(is_whole_tree(p, cwd) for p in paths):
+        return REASONS["restore"]
     return None
 
 
