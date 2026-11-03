@@ -28,12 +28,21 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 │   ├── commit-ko/SKILL.md
 │   ├── pr-ko/SKILL.md
 │   ├── explain-ko/SKILL.md
-│   └── new-hook/SKILL.md
+│   ├── new-hook/SKILL.md
+│   └── newsletter-ko/SKILL.md
 ├── agents/                # 특정 작업을 전담하는 서브에이전트 (아래 "전문 에이전트" 참고)
 │   ├── hook-auditor.md
 │   ├── log-analyst.md
 │   └── docs-ko.md
 └── logs/                  # 훅이 만드는 로그 (gitignore 됨)
+newsletter/                # 뉴스레터 PDF 생성 (아래 "뉴스레터 생성" 참고)
+├── build.py               # issue JSON 검증 → HTML → PDF → 압축 → 용량 확인 → 기록
+├── render_pdf.js          # HTML을 A4 PDF로 변환 (playwright chromium)
+├── config.json            # 제목·슬로건·인용구·기사 수·용량 한도
+├── style.css              # PDF 서식
+├── inputs/                # 비즈니스 섹션 입력 (YYYY-MM-DD.md)
+├── tests/fixture_issue.json # 시험용 더미 호
+└── out/                   # 산출물 (gitignore 됨)
 ```
 
 ## 동작 원리
@@ -267,6 +276,7 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 | `/pr-ko`      | main 대비 변경을 읽고 한국어 PR 설명 초안 출력                  | 함                   |
 | `/explain-ko` | 파일·함수·설정을 개발자가 아닌 사람도 알 수 있게 설명           | 함                   |
 | `/new-hook`   | "X할 때마다 Y" 요청을 훅 스크립트와 settings.json 등록으로 생성 | 안 함 (직접 호출만)  |
+| `/newsletter-ko` | 식품·라이프스타일 뉴스 6건을 골라 요약·분석해 10MB 이하 PDF 뉴스레터로 생성 | 안 함 (직접 호출만)  |
 
 사용 예:
 
@@ -275,6 +285,7 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 /pr-ko 보안 관련 변경이 있으니 꼼꼼히 봐 주세요
 /explain-ko .claude/hooks/block-dangerous.sh
 /new-hook 파이썬 파일 수정 후 ruff 실행
+/newsletter-ko 2026-11-04
 ```
 
 ## SKILL.md 구조
@@ -387,3 +398,75 @@ model: haiku # haiku / sonnet / opus / inherit(메인과 같음)
 3. 본문 끝에 보고 형식을 정합니다.
 4. `/agents`에서 목록에 보이는지 확인하고, 작은 작업으로 한 번 위임해 봅니다.
 5. 나만 쓸 에이전트는 `~/.claude/agents/`에 두면 모든 프로젝트에서 쓸 수 있습니다.
+
+# 뉴스레터 생성: 식품 뉴스 브리핑을 PDF로
+
+`/newsletter-ko [YYYY-MM-DD]`는 식품·라이프스타일 뉴스 브리핑을 PDF로 만드는 슬래시 명령어입니다.
+날짜를 비우면 오늘 날짜로 만듭니다.
+`disable-model-invocation: true`이므로 사용자가 직접 부를 때만 실행됩니다.
+
+## 만드는 순서
+
+1. 명령어가 WebSearch로 기사 6건을 고르고, WebFetch로 본문을 읽어 제목·출처·일시·기자를 확인합니다.
+2. 기사를 요약·분석해 issue JSON을 `newsletter/out/issue-<발행일>.json`에 씁니다.
+3. `python3 newsletter/build.py <issue.json>`을 실행해 PDF를 만듭니다.
+4. 종료 코드 0이고 용량이 한도 이하이면 끝납니다. 종료 코드 3이면 분량을 줄여 다시 빌드합니다.
+
+## build.py가 하는 일
+
+| 단계 | 내용                                                                                          |
+| ---- | --------------------------------------------------------------------------------------------- |
+| 검증 | 기사 수(`config.json`의 `article_count`, 현재 6건), 필수 항목, `https://` 링크를 확인         |
+| 중복 | `newsletter/archive.jsonl`에 기록된 이전 호 URL과 같은 기사는 차단. 같은 호 안의 중복도 차단 |
+| 입력 | `newsletter/inputs/<발행일>.md`가 있으면 비즈니스 섹션으로 싣고, 없으면 섹션을 생략          |
+| 변환 | HTML을 만들고 `render_pdf.js`(playwright chromium)로 A4 PDF로 변환                            |
+| 압축 | Ghostscript(`gs`)가 있으면 사용하고, 없으면 pypdf로 압축                                      |
+| 확인 | 용량(`max_mb`, 현재 10MB)을 확인. `target_pages`가 설정되어 있으면 쪽 수도 확인              |
+| 기록 | 통과하면 `archive.jsonl`에 날짜와 URL을 추가. `--dry-run`이면 기록하지 않음                   |
+
+종료 코드는 다음과 같습니다.
+
+| 코드 | 뜻                                              |
+| ---- | ----------------------------------------------- |
+| 0    | 성공                                            |
+| 1    | issue JSON 검증 실패 (기사 수, 필수 항목, 링크, 중복) |
+| 2    | 사용법 오류                                     |
+| 3    | 용량 또는 쪽 수 기준 미달                       |
+
+산출물은 `newsletter/out/뉴스레터(식품관련 YYMMDD).pdf`에 생깁니다.
+PDF 변환에는 node와 playwright가, 쪽 수 확인에는 `pdfinfo`가 필요합니다.
+
+## 시험해 보기
+
+더미 호로 빌드만 확인합니다. `archive.jsonl`에는 기록하지 않습니다.
+
+```bash
+python3 newsletter/build.py newsletter/tests/fixture_issue.json --dry-run
+```
+
+## 설정과 입력
+
+| 파일                                | 내용                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `newsletter/config.json`            | 제목, 슬로건, 인용구, 기사 수(`article_count`), 용량 한도(`max_mb`), 목표 쪽 수(`target_pages`) |
+| `newsletter/style.css`              | PDF 서식                                                                                   |
+| `newsletter/inputs/YYYY-MM-DD.md`   | 비즈니스 섹션 입력. `## 제목` 블록마다 항목 하나                                           |
+| `newsletter/tests/fixture_issue.json` | 시험용 더미 호                                                                           |
+
+`newsletter/out/`은 gitignore 됩니다.
+
+## 자동 생성하지 않는 것
+
+- 비즈니스 섹션(재고, 신상품, 미팅 소식)은 자동으로 만들지 않습니다. 발행인이 `inputs/`에 적은 것만 싣습니다.
+- 배포 인원 같은 발행인 수치도 만들지 않습니다. `config.json`에 값이 있을 때만 표시합니다.
+- 읽지 못한 기사는 싣지 않습니다.
+
+## 예정
+
+아래는 아직 구현되지 않았습니다.
+
+| 항목                           | 상태 |
+| ------------------------------ | ---- |
+| 매일 자동 실행 (예약 작업)     | 예정 |
+| Gmail 첨부 → Drive 자동 저장   | 예정 |
+| 자동발행 웹 페이지             | 예정 |
