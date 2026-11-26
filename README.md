@@ -267,6 +267,9 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 | `/pr-ko`      | main 대비 변경을 읽고 한국어 PR 설명 초안 출력                  | 함                   |
 | `/explain-ko` | 파일·함수·설정을 개발자가 아닌 사람도 알 수 있게 설명           | 함                   |
 | `/new-hook`   | "X할 때마다 Y" 요청을 훅 스크립트와 settings.json 등록으로 생성 | 안 함 (직접 호출만)  |
+| `/markitdown-ko` | docx·pptx·xlsx·pdf를 마크다운으로 바꿔 읽고 정리 (토큰 절약)  | 함                   |
+
+`/markitdown-ko`는 Microsoft의 [MarkItDown](https://github.com/microsoft/markitdown)이 설치되어 있어야 합니다(`pip install 'markitdown[all]'`). 변환 결과는 `.claude/logs/converted/`에 저장되며 git에 올라가지 않습니다. 설치되어 있지 않으면 설치 안내만 하고 멈춥니다.
 
 사용 예:
 
@@ -275,6 +278,7 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 /pr-ko 보안 관련 변경이 있으니 꼼꼼히 봐 주세요
 /explain-ko .claude/hooks/block-dangerous.sh
 /new-hook 파이썬 파일 수정 후 ruff 실행
+/markitdown-ko 보고서.pptx 핵심만 요약해 줘
 ```
 
 ## SKILL.md 구조
