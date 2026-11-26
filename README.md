@@ -128,17 +128,17 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 `block-dangerous.sh`는 다음을 막습니다.
 
-| 차단 대상                 | 예시                                                                                                                                                                                                                                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                                                                                                                                                                       |
-| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`, `find ~ -exec sh -c 'rm "$1"' _ {} \;`, `find / \| xargs sh -c 'rm "$@"' _`                                                                                                                               |
-| main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                                                                                                                                                                         |
-| main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                                                                                                                                                                         |
-| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`, `git checkout -- .`·`git checkout .`·`git checkout HEAD :/`처럼 작업 폴더 전체를 되돌리는 checkout, `git checkout -f main`                                                                                           |
-| main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                                                                                                                                                                       |
-| 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                                                                                                                                                                 |
-| 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img`, `rsync x.img /dev/sdb`, `rsync x.img host:/dev/sdb`, `ddrescue -f /dev/sda /dev/sdb map`, `install -m 644 x.img /dev/sdb`, `mv x.img /dev/sdb` |
-| 해석할 수 없는 명령       | 따옴표·괄호 짝이 맞지 않는 명령, JSON이 아닌 훅 입력, 검사 중 오류                                                                                                                                                                                                                                               |
+| 차단 대상                 | 예시                                                                                                                                                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 루트/홈 재귀 삭제         | `rm -rf /`, `rm -Rf ~/`, `rm -r -f $HOME`, `rm --recursive --force -- /`, `/bin/rm -rf /*`                                                                                                                                                                                                                                       |
+| find로 루트/홈 전체 삭제  | `find / -delete`, `find ~ -exec rm -rf {} +`, `find ~ ! -name keep -delete`, `find / \| xargs rm -rf`, `find ~ -exec sh -c 'rm "$1"' _ {} \;`, `find / \| xargs sh -c 'rm "$@"' _`                                                                                                                                               |
+| main/master 강제 푸시     | `git push -f origin main`, `git push origin +main`, `git push -f origin HEAD:main`, `--force-with-lease`                                                                                                                                                                                                                         |
+| main/master 원격 삭제     | `git push origin :main`, `git push origin --delete main`                                                                                                                                                                                                                                                                         |
+| 작업 내용 유실            | `git reset --hard`(옵션 위치 무관), `git clean -f`, `git clean --force`, `git clean -d -f`, `git checkout -- .`·`git checkout .`·`git checkout HEAD :/`처럼 작업 폴더 전체를 되돌리는 checkout, `git checkout -f main`, 같은 기준의 `git restore .`·`git restore -SW .`, 보관한 변경을 지우는 `git stash drop`·`git stash clear` |
+| main/master 전체 덮어쓰기 | `git push --mirror origin`, `git push origin '+refs/heads/*:refs/heads/*'`                                                                                                                                                                                                                                                       |
+| 디스크 파괴               | `/dev/...` 장치를 대상으로 한 `mkfs.*`·`mke2fs`, `dd ... of=/dev/sda` 처럼 실제 장치에 쓰는 `dd`                                                                                                                                                                                                                                 |
+| 장치에 직접 쓰기          | `cat x.img > /dev/sdb`, `>>`·`>\|`·`&>`·`<>`·`>&/dev/sda`, `cat x.img \| sudo tee /dev/sdb`, `cp x.img /dev/sdb`, `cp -t /dev/sdb x.img`, `pv -o /dev/sdb x.img`, `rsync x.img /dev/sdb`, `rsync x.img host:/dev/sdb`, `ddrescue -f /dev/sda /dev/sdb map`, `install -m 644 x.img /dev/sdb`, `mv x.img /dev/sdb`                 |
+| 해석할 수 없는 명령       | 따옴표·괄호 짝이 맞지 않는 명령, JSON이 아닌 훅 입력, 검사 중 오류                                                                                                                                                                                                                                                               |
 
 다음과 같은 변형도 같은 명령으로 알아봅니다.
 
@@ -156,7 +156,9 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 - 일상적인 명령: `rm -rf ./build`, `rm -rf ~/projects/old`, `git push --force origin feature/x`,
   `git push --follow-tags origin main`, `git clean -n`, `git reset --soft HEAD~1`, `dd ... of=/dev/null`
-- 파일을 지정한 되돌리기: `git checkout -- src/app.ts`, `git checkout main -- package.json`, 하나씩 묻는 `git checkout -p -- .`
+- 파일을 지정한 되돌리기: `git checkout -- src/app.ts`, `git checkout main -- package.json`, `git restore src/app.ts`,
+  하나씩 묻는 `git checkout -p -- .`·`git restore -p .`, 스테이징만 취소하는 `git restore --staged .`
+- 보관한 변경을 꺼내는 `git stash pop`·`git stash apply`
 - **따옴표 안의 글자와 주석**: `git commit -m "rm -rf / 우회 수정"`, `echo "git reset --hard"`,
   `grep -rn "rm -rf /" .`, 따옴표 heredoc(`<<'EOF'`) 본문, `# don't` 같은 주석, `man mkfs`
 - 마른 실행과 안전한 대상: `git push -n -f origin main`, `mkfs.ext4 -F rootfs.img`, `dd ... of=/dev/shm/x`
@@ -171,7 +173,7 @@ Claude Code는 특정 **이벤트**가 발생할 때 셸 명령을 자동으로 
 
 > 한계: 사고를 막는 안전장치이지 보안 경계가 아닙니다. 실행해 봐야 값을 아는 명령
 > (`$(echo rm) -rf /`, `${IFS}`로 단어 나누기, 실행 중에 만든 스크립트)까지 막지는 못합니다.
-> `git restore .`·`git stash drop`·`git branch -D`처럼
+> `git branch -D`처럼
 > 지금 범위 밖의 위험 명령도 통과합니다. 장치를 **읽는** 명령(`cp /dev/sda backup.img`, `pv /dev/sda > disk.img`,
 > `ddrescue /dev/sda disk.img disk.map`, `rsync --copy-devices /dev/sda backup.img`)은 막지 않습니다.
 
@@ -265,6 +267,9 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 | `/pr-ko`      | main 대비 변경을 읽고 한국어 PR 설명 초안 출력                  | 함                   |
 | `/explain-ko` | 파일·함수·설정을 개발자가 아닌 사람도 알 수 있게 설명           | 함                   |
 | `/new-hook`   | "X할 때마다 Y" 요청을 훅 스크립트와 settings.json 등록으로 생성 | 안 함 (직접 호출만)  |
+| `/markitdown-ko` | docx·pptx·xlsx·pdf를 마크다운으로 바꿔 읽고 정리 (토큰 절약)  | 함                   |
+
+`/markitdown-ko`는 Microsoft의 [MarkItDown](https://github.com/microsoft/markitdown)이 설치되어 있어야 합니다(`pip install 'markitdown[all]'`). 변환 결과는 `.claude/logs/converted/`에 저장되며 git에 올라가지 않습니다. 설치되어 있지 않으면 설치 안내만 하고 멈춥니다.
 
 사용 예:
 
@@ -273,6 +278,7 @@ jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | .command' .
 /pr-ko 보안 관련 변경이 있으니 꼼꼼히 봐 주세요
 /explain-ko .claude/hooks/block-dangerous.sh
 /new-hook 파이썬 파일 수정 후 ruff 실행
+/markitdown-ko 보고서.pptx 핵심만 요약해 줘
 ```
 
 ## SKILL.md 구조
